@@ -14,12 +14,15 @@ was hiding in the program.*
 
 This repository is a Lean 4 + Mathlib development of that model.
 
-> **Status.** Design resolved; formalization not started. The central viability
-> question — *does forcing the generic collapse the logic to classical?* — is
-> answered **no**: the coverage is the intuitionistic Beth/open-cover coverage,
-> the topos is non-Boolean, and EM *fails outright* (witness below). The
-> remaining work is labor, not hazard, and concentrates in the `Soundness`
-> module. See [What remains](#what-remains).
+> **Status.** Formalization started. The design was adversarially stress-tested
+> and revised (2026-06-12); **`THEORY.md` is the authoritative formalization
+> plan** — this README carries the conceptual story. Headlines of the revision:
+> the central viability question — *does forcing the generic collapse the logic
+> to classical?* — stays answered **no**, now with a direct, bar-free proof; the
+> formalization needs **no sheaf machinery** (the Beth coverage is absorbed into
+> the realizability clauses); the firewall holds **by construction** rather than
+> by a parametricity lemma; and the tractable/research boundary is *data-valued
+> vs function-valued `B`*. See [What remains](#what-remains).
 
 ## Why the *conditional* statement
 
@@ -39,9 +42,13 @@ condition on decidable equality, which is exactly the right strength:
 
 ## The construction
 
-Realizers are **Lean values in the monotone-update monad** over the poset `P` of
-forcing conditions (finite partial sections — a heap of caches, each a finite map
-from keys `a : A` to realized elements of `B a`, ordered by extension):
+Realizers are **terms of a free monad over a single heap operation**: eq-guarded
+memoizing lookup, whose on-miss value is computed by the *cell's own* family
+realizer, fixed at allocation. (Raw "Lean values in a monad" would not do: Lean
+has no internal parametricity, and a bare function out of conditions can inspect
+them — the firewall would be unprovable. A free-monad term cannot inspect or
+write the heap, because no constructor lets it.) Realizer terms are interpreted
+into the **monotone-update monad** over the poset `P` of forcing conditions:
 
 ```
 T X := (c : P) → Σ (c' : P), (c ≤ c') × X        -- from condition c, possibly extend, return an X
@@ -62,106 +69,110 @@ def axiom_of_choice(eq, family):       # eq : DecidableEq A,  family : Π x:A. �
 
 `choice_fn` does not denote a total set-theoretic function (its cache is always
 finite). It realizes a **forcing-name** for the generic section — and the
-semantics under which that name is a genuine section is the point of the next two
-sections.
+semantics under which that name is a genuine section is the next section.
 
-## Semantics: realizability over a forcing site
+## Semantics: the ⊩-kernel
 
 A store-indexed (Kripke) relation `r ⊩_c x`, monotone in `c`, with
-`e ⊩ᵀ_c x ⟺ e c = (c', _, r) ∧ c ⊑ c' ∧ r ⊩_{c'} x`, **sheafified** for a
-coverage `J` on `P`.
+`e ⊩ᵀ_c x ⟺ e c = (c', _, r) ∧ c ⊑ c' ∧ r ⊩_{c'} x`. Two design points carry
+everything:
 
-The coverage is *not* a free parameter — it is forced by the computation model:
+- **Conditions are semantic, typed by construction.** A condition is a finite
+  partial section: per cell, a finite map from semantic elements `x : A` to
+  semantic elements `y : B x`, plus the cell's label (its eq and family
+  realizers). Garbage commitments are *unrepresentable*. Programs act on a
+  separate **code-heap** `h`, tied to conditions by a simulation relation
+  `h ~ c`.
+- **Truncation is per-branch existence.** `e ⊩ᵀ_c (y ∈ X)` demands the *same*
+  semantic `y` on every run-branch (every `h ~ c`); `e ⊩ᵀ_c ‖X‖` allows a
+  different witness per branch (for data `X`; the truncated `Π` gets a dedicated
+  *generic-section* clause, `THEORY.md` §4). That quantifier swap is the
+  Beth/decision-bar coverage in disguise — **no Grothendieck topology or
+  sheafification appears in the formalization**. The localic picture is
+  unchanged: for `A = ℕ, B = Bool` the conceptual model is Cantor space
+  `Sh(2^ℕ)`; the kernel ↔ decision-bar-site correspondence is a stated
+  conjecture, not a dependency.
 
-- **`J` = the Beth / open-cover (decision-bar) coverage.** The generating covers
-  are *decision covers*: at condition `c`, cell `ℓ`, key `a` realized at `c`, the
-  cover is `{ c ∪ {ℓ : a ↦ b} : b ranges over all realizers of elements of B a }`.
-  Closed under pullback and transitivity, a sieve covers `c` iff it contains a
-  **decision bar** — a well-founded querying strategy all of whose branches enter
-  the sieve. (Verified to be a genuine Grothendieck topology.)
-- This is **strictly coarser than double-negation**, hence intuitionistic. The
-  `¬¬` coverage would be classical Cohen forcing (Boolean → EM); the decision-bar
-  coverage is not. Localically, for `A = ℕ, B = Bool` the site is Cantor space
-  `Sh(2^ℕ)`.
+**The branching problem dissolves.** The bare Kripke relation failed because an
+element of `B x` at `c` must be compatible across *all* futures, while
+incomparable extensions can commit different values at one key. The per-branch
+clauses never ask incomparable branches to agree. The generic is a name whose
+value is settled branch-locally:
 
-**The branching problem dissolves.** The bare Kripke relation failed because the
-`Π`-clause demands a section uniform over *all* futures, while incomparable
-extensions can commit different values at one key. In `Sh(P, J)` those extensions
-are *incompatible conditions* (compatibility = syntactic agreement of stored
-realizers, so no equality on `B`-values is ever needed), and the sheaf condition
-never asks incompatible branches to agree. The generic is a **sheaf section**,
-not a global one:
+- **Totality**: a miss extends the condition by a typed entry computed from the
+  family realizer.
+- **Single-valuedness**: the condition itself fixes the semantic value of each
+  entry, and eq-routed keys share their entry.
 
-- **Totality** from density of the decision covers (relativized to conditions
-  where `a` is realized — exactly the `Π`-clause's domain, so totality is not
-  over-demanded).
-- **Single-valuedness** from incompatibility of conflicting commits.
-
-**The eliminator survives sheafification for free.** Local truth for `‖X‖` is "a
-cover on each member of which a witness exists." Eliminating into a proposition,
-the per-branch values are all the sole element of the subsingleton; propositions
-are sheaves of subsingletons, so gluing is well-defined regardless of which
-witness each branch produced. `elim k e := e >>= k` transports verbatim.
+**The eliminator is not free.** For data `X`, eliminating `‖X‖` into a
+proposition is unproblematic: per-branch witnesses are invisible to a
+subsingleton. For `‖Π x. B x‖` — whose realizer is a *generic section*, not a
+tracker of any fixed function — justifying the standard eliminator is open work
+(`THEORY.md` §4, two candidate routes): the kernel theorems state `AC_dec` with
+`‖·‖` read as generic-section truncation, and the eliminator belongs to the
+research tier.
 
 ## Non-Booleanness (the headline theorem)
 
 EM fails outright — stronger than merely blocking Diaconescu.
 
-> Take cells for `A = ℕ`, `B n = Bool`, and `φ := ∃ n, s(n) = true` for the
-> generic `s`. Geometrically (`Sh(2^ℕ)`), `φ = 2^ℕ ∖ {all-false}`: open, dense,
-> not closed, so not complemented. Hence `cl(φ)` is everything, `¬¬φ = ⊤`
-> everywhere, but `φ` misses the all-false point, so `¬¬φ ⊬ φ`. At the sieve
-> level: the *always-answer-false* branch evades every decision bar, so `φ`'s
-> sieve contains no bar and `φ` is not forced at the empty condition.
+> Take a cell for `A = ℕ`, `B n = Bool` with the constant-false family, and
+> `φ := ∃ n, s(n) = true` for the generic `s`. Geometrically (`Sh(2^ℕ)`),
+> `φ = 2^ℕ ∖ {all-false}`: open, dense, not closed — so `¬¬φ = ⊤` everywhere,
+> but `φ` misses the all-false point.
 
-This survives the internal `∀A` of `AC_dec` by **value-blindness**: every
-generating cover demands that a key be *committed* while admitting *every* value
-as outcome — no admissible cover can constrain *which* value is committed.
-Operationally this is the same fact as the firewall below.
+In the kernel this is a direct two-horn argument (`THEORY.md` §3) — no bars, no
+sieves. A realizer of `φ ∨ ¬φ` cannot answer `inl`: the memo-only operation
+never lets a program write `true` into the cache (the firewall). It cannot
+answer `inr`: the *typed possibilium* `c + {m ↦ true}` is a legitimate condition
+— unreachable by executing this family, but conditions are possibilia, not
+execution states — and it realizes `φ` (the genericity). Meanwhile `¬¬φ` is
+realized everywhere. The two horns are value-blindness, absorbed structurally:
+programs cannot put values in; the semantics can imagine them in.
 
-## The Diaconescu firewall (soundness-critical invariant)
+## The Diaconescu firewall (by construction)
 
-The heap must expose **exactly one** operation: eq-guarded lookup-or-commit. Any
-introspection — enumerating keys, observing cache size, comparing cell identities
-— lets a program observe whether two realizers routed to the same cell, deciding
-element-equality, which on `2/~ₚ` decides `P` and hands EM back through the side
-door. The "Lean values in a monad, no quote, no reflection" choice enforces this,
-but it must be **promoted to a stated parametricity lemma** (the heap functor is
-parametric in cell contents): the non-Booleanness theorem is *false* without it.
-Value-blindness and this invariant are the same fact and must be proven together.
+The heap exposes exactly one operation: eq-guarded lookup-or-commit, with the
+committed value computed by the cell's own family realizer. Clients cannot write
+chosen values, enumerate keys, observe cache size, or compare cell identities —
+not because a lemma forbids it, but because the realizer syntax has no
+constructor that does it. What an earlier plan called "promote the firewall to a
+stated parametricity lemma" is now true by construction of the operational
+semantics. What is *not* yet closed is the internal `∀A` version — that no
+internal decidable-equality object (e.g. `2/~ₚ`, with equality only locally
+decided) smuggles in new observational power. That closure is research-tier; the
+kernel theorems do not assume it.
 
 ## What remains
 
-The viability question is settled favorably; the effort relocates to formalizing
-the sheaf-realizability soundness. In rough order of difficulty:
+In order:
 
-1. **The `∀A` value-blindness / firewall closure.** Argued, not formalized — that
-   internal closure under all decidable-equality objects adds no covers beyond
-   decision covers. This *is* the heart of the `Soundness` module.
-2. **Local-equality cache indexing.** In the sheaf model `eq(a, a')` may be `inl`
-   on part of a cover and `inr` on another (a section of `(=) + ¬(=)` is a
-   partition of a cover). So the cache is keyed by *local* equality classes,
-   coherent only because morphisms respect local equality. `Realizes` must build
-   this in from the start (retrofitting is a miserable Lean refactor); expect the
-   most friction here.
-3. **Full-granularity non-Booleanness proof** — explicit sieve calculus and the
-   bar-induction for the transitivity closure of `J`. A subtle error could still
-   hide in the bar bookkeeping.
+1. **K1 — the ⊩-kernel and non-Booleanness.** Semantic conditions, the
+   simulation `h ~ c`, clauses for the needed type-shapes, and the two-horn
+   theorem above. First target.
+2. **K2 — `AC_dec` for data-valued `B`.** Index `A` with realized,
+   condition-stable decidable equality; family and eq realizers arbitrary and
+   state-entangled. Main labor: fuel/termination bookkeeping — the interpreter
+   cannot be seen total by Lean, so each realizability statement carries its own
+   termination witness, BBC-style.
+3. **K3 — research tier.** Function-valued `B` (honest higher-order store:
+   step-indexing / recursive worlds); the internal `∀A` closure with
+   condition-*local* equality classes (a section of `(=) + ¬(=)` is a partition
+   of a cover — the `2/~ₚ` firewall and the novelty claim live here); the
+   truncation eliminator for the generic-section clause; the kernel ↔
+   decision-bar-site correspondence; full soundness, upgrading "EM is not
+   realized" to "a model of MLTT in which EM fails."
 
-## Provisional Lean layout
+## Lean layout
 
-1. `Computation` — the monotone-update monad; the heap of caches; allocation;
-   the **parametricity (firewall) lemma**.
-2. `Forcing` — the poset `P`; decision covers; the coverage `J`; the
-   **non-Booleanness witness** as the headline theorem (this subsumes and
-   strengthens the old `Diaconescu` plan to "EM fails," not merely "this
-   construction doesn't prove EM").
-3. `Realizes` — the store-indexed relation, sheafified, with **commit-time
-   local-equality-class indexing** built in; clauses for `Π`, `Σ`, `=`, `‖·‖`.
-4. `Soundness` — type formers and the truncation eliminator under the sheaf
-   relation; the `∀A` closure. (Central effort.)
-5. `Choice` — the memoizer; `AC_dec`; the theorem via totality (density) +
-   single-valuedness (incompatibility).
+1. `Computation` — the monotone-update monad `T` (done, with a verified
+   `LawfulMonad` instance); the heap and its extension order (done; being
+   reshaped per `THEORY.md` §5); the mono-sorted free monad of realizer terms
+   with memo-only operation and allocation; the fuel-indexed interpreter.
+2. `Realizes` — the ⊩-kernel.
+3. `NonBoolean` — K1.
+4. `Choice` — K2: the memoizer; `AC_dec` via totality + single-valuedness.
+5. `Soundness` — K3, later.
 
 ## Lineage
 
@@ -174,10 +185,13 @@ The memoizer is the mutable-state form of the **Berardi–Bezem–Coquand functi
 contribution is that *only decidable equality* of the index is used, so the
 construction extends from `ℕ` to arbitrary decidable-equality objects — which need
 not be projective, strictly extending the projective-choice picture of
-realizability toposes (Hyland, van Oosten). The condition-threaded monad is the
+realizability toposes (Hyland, van Oosten); note this substantive form of the
+claim lives in the K3 tier, while K2's delta over BBC is chiefly the
+decidable-equality-index packaging. The condition-threaded monad is the
 intuitionistic, control-free cousin of Miquel's forcing-as-program-transformation
 and Krivine's clock-realizers for DC; the coverage is Beth/open-cover
-(Fourman–Scott); the scaffolding is a realizability tripos indexed over `Sh(L)`.
+(Fourman–Scott); the conceptual home is a realizability tripos indexed over
+`Sh(L)`, though the kernel formalization does not build one.
 *(Novelty of the decidable-equality generalization is being checked against the
 literature — see the open lineage question.)*
 
