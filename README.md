@@ -147,9 +147,17 @@ kernel theorems do not assume it.
 
 In order:
 
-1. **K1 — the ⊩-kernel and non-Booleanness.** Semantic conditions, the
-   simulation `h ~ c`, clauses for the needed type-shapes, and the two-horn
-   theorem above. First target.
+1. **K1 — non-Booleanness.** ✅ **Done** (`NonBoolean.lean`), in two layers.
+   *Realizer level*: `em_not_realized` (no program decides `φ ∨ ¬φ` at the
+   base condition) and `dne_not_realized`, via the memo-discipline lemma
+   `protected_run` — the firewall as a proved invariant. *Algebra level*
+   (`kripke_not_boolean`): over the poset of **single-valued** conditions —
+   required, since the raw heap order is not persistent — the operational `φ`
+   is a monotone proposition with `¬φ = ⊥` (density at a fresh key) and
+   `φ ≠ ⊤`, so the Kripke algebra of monotone propositions is **non-Boolean**.
+   That algebra is the truth-value algebra of the presheaf topos over the
+   condition poset; the identification, and the sheaf topos for the decision
+   coverage, remain on paper (K3).
 2. **K2 — `AC_dec` for data-valued `B`.** Index `A` with realized,
    condition-stable decidable equality; family and eq realizers arbitrary and
    state-entangled. Main labor: fuel/termination bookkeeping — the interpreter
@@ -170,8 +178,13 @@ In order:
    with its extension `PartialOrder`; the mono-sorted free monad `F` of
    realizer terms (memo-only operation, allocation, monad laws); the
    fuel-indexed interpreter `run` with eq-guarded scan.
-2. `Realizes` — the ⊩-kernel.
-3. `NonBoolean` — K1.
+2. `NonBoolean` — **done**: the K1 theorems (`em_not_realized`,
+   `notNot_phi_forced`, `dne_not_realized`, `kripke_not_boolean`) over the
+   constant-false generic cell, with the firewall as the `Protected` invariant
+   preserved by every run, and persistence of `φ` over single-valued
+   conditions.
+3. `Realizes` — the ⊩-kernel (semantic conditions, simulation `h ~ c`,
+   clauses); needed from K2 on.
 4. `Choice` — K2: the memoizer; `AC_dec` via totality + single-valuedness.
 5. `Soundness` — K3, later.
 

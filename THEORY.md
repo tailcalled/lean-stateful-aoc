@@ -177,8 +177,29 @@ Supersedes parts of the current file:
 
 ## 6. Revised milestones
 
-- **K1**: ⊩-kernel + the §3 theorem (`EM not realized`, `¬¬φ` realized).
-  No sheaf machinery. First target.
+- **K1**: the §3 theorems. **DONE 2026-06-13** (`NonBoolean.lean`):
+  `em_not_realized`, `notNot_phi_forced`, `dne_not_realized`, via the
+  memo-discipline invariant `Protected` + `protected_run`.
+
+  *Correction (same day, prompted by the user asking whether this shows a
+  topos is non-Boolean).* The first version forced over **raw heaps**, and
+  that relation is **not persistent**: `Cell.Le` admits duplicate-key
+  extensions, and the newest-first scan lets them shadow older values, so
+  `ForcesPhi h` can fail at an extension of `h`. The realizer-level theorems
+  are unaffected, but the forcing reading demands **single-valued conditions**
+  (pairwise-distinct keys) — precisely §2's semantic-conditions discipline,
+  which the raw-heap shortcut had dropped. With the poset `Cond` of
+  single-valued conditions above `h₀`: persistence of `φ` holds
+  (`forcesPhi_persists`), density needs a *fresh* key (`kPhi_dense`; the
+  earlier shadowing trick was exploiting the broken order), and
+  **`kripke_not_boolean`** exhibits the operational `φ` as a monotone
+  proposition with `¬φ = ⊥`, `¬¬φ = ⊤`, `φ ≠ ⊤` in the Kripke algebra `KProp`
+  of monotone propositions over `Cond`. That algebra is the truth-value
+  algebra of the presheaf topos over `Cond`; the formal identification with
+  `Psh(Cond)` (and the sheaf topos for the decision coverage) remains K3.
+  Scope note: "EM fails in *the* model validating `AC_dec`" still requires
+  K2+K3 — K1's topos-facing claim is about the presheaf algebra over this
+  condition poset.
 - **K2**: `AC_dec` realized for data-valued `B`, realized-deceq index, arbitrary
   state-entangled family/eq (§4). Fuel/termination bookkeeping is the main labor.
 - **K3 (research)**: function-valued `B` (step-indexing / recursive worlds);

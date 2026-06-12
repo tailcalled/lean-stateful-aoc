@@ -55,6 +55,14 @@ structure Step (X : Type v) (c : P) where
   /-- the returned value -/
   val : X
 
+/-- Steps are determined by their condition and value; the order witness is
+proof-irrelevant. -/
+theorem Step.ext {X : Type v} {c : P} {s t : Step X c}
+    (hn : s.next = t.next) (hv : s.val = t.val) : s = t := by
+  cases s; cases t
+  subst hn; subst hv
+  rfl
+
 /-- The monotone-update monad over the preorder `P`. -/
 def T (P : Type u) [Preorder P] (X : Type v) : Type (max u v) := (c : P) → Step X c
 
@@ -114,12 +122,50 @@ protected def pure {X : Type v} (x : X) : PT P X := fun c => some ⟨c, le_refl 
 universe-heterogeneous, hence no `Monad` instance.) -/
 protected def bind {X : Type v} {Y : Type w} (m : PT P X) (f : X → PT P Y) : PT P Y :=
   fun c =>
-    match m c with
-    | none => none
-    | some s =>
-      match f s.val s.next with
-      | none => none
-      | some s' => some ⟨s'.next, le_trans s.le s'.le, s'.val⟩
+    (m c).bind fun s =>
+      (f s.val s.next).map fun s' => ⟨s'.next, le_trans s.le s'.le, s'.val⟩
+
+@[simp] theorem pure_apply {X : Type v} (x : X) (c : P) :
+    (PT.pure x : PT P X) c = some ⟨c, le_refl c, x⟩ := rfl
+
+/-- Inversion for `pure`. -/
+theorem pure_eq_some {X : Type v} {x : X} {c : P} {s : Step X c}
+    (h : (PT.pure x : PT P X) c = some s) : s.next = c ∧ s.val = x := by
+  have he := Option.some.inj h
+  exact ⟨(congrArg Step.next he).symm, (congrArg Step.val he).symm⟩
+
+/-- Introduction for `bind`. -/
+theorem bind_some {X : Type v} {Y : Type w} {m : PT P X} {f : X → PT P Y} {c : P}
+    {s₁ : Step X c} {s₂ : Step Y s₁.next}
+    (hm : m c = some s₁) (hf : f s₁.val s₁.next = some s₂) :
+    PT.bind m f c = some ⟨s₂.next, le_trans s₁.le s₂.le, s₂.val⟩ := by
+  simp [PT.bind, hm, hf]
+
+/-- Left identity: holds definitionally up to structure eta and proof
+irrelevance of the order witness. -/
+@[simp] theorem pure_bind {X : Type v} {Y : Type w} (x : X) (f : X → PT P Y) :
+    PT.bind (PT.pure x) f = f x := by
+  funext c
+  change (f x c).map
+      (fun s' => (⟨s'.next, le_trans (le_refl c) s'.le, s'.val⟩ : Step Y c)) = f x c
+  rcases h : f x c with _ | s' <;> rfl
+
+/-- Inversion for `bind`. -/
+theorem bind_eq_some {X : Type v} {Y : Type w} {m : PT P X} {f : X → PT P Y} {c : P}
+    {s : Step Y c} (h : PT.bind m f c = some s) :
+    ∃ s₁ : Step X c, m c = some s₁ ∧ ∃ s₂ : Step Y s₁.next,
+      f s₁.val s₁.next = some s₂ ∧ s.next = s₂.next ∧ s.val = s₂.val := by
+  unfold PT.bind at h
+  rcases hm : m c with _ | s₁ <;> rw [hm] at h
+  · simp at h
+  · -- expose the `map` under the (now reduced) `bind`
+    have h' : (f s₁.val s₁.next).map
+        (fun s₂ => (⟨s₂.next, le_trans s₁.le s₂.le, s₂.val⟩ : Step Y c)) = some s := h
+    rcases hf : f s₁.val s₁.next with _ | s₂ <;> rw [hf] at h'
+    · simp at h'
+    · have he := Option.some.inj h'
+      exact ⟨s₁, rfl, s₂, hf,
+        (congrArg Step.next he).symm, (congrArg Step.val he).symm⟩
 
 end PT
 
@@ -340,6 +386,19 @@ fresh location. -/
 def allocPT (eqr : V → V → F V) (fam : V → F V) : PT (Heap V) Loc :=
   fun h => some ⟨h.alloc eqr fam, Heap.le_alloc h eqr fam, h.length⟩
 
+/-- Inversion for `commitPT`. -/
+theorem commitPT_eq_some {ℓ : Loc} {a b : V} {h : Heap V} {s : Step V h}
+    (hc : commitPT ℓ a b h = some s) : s.next = h.commit ℓ a b ∧ s.val = b := by
+  have he := Option.some.inj hc
+  exact ⟨(congrArg Step.next he).symm, (congrArg Step.val he).symm⟩
+
+/-- Inversion for `allocPT`. -/
+theorem allocPT_eq_some {eqr : V → V → F V} {fam : V → F V} {h : Heap V}
+    {s : Step Loc h} (hc : allocPT eqr fam h = some s) :
+    s.next = h.alloc eqr fam ∧ s.val = h.length := by
+  have he := Option.some.inj hc
+  exact ⟨(congrArg Step.next he).symm, (congrArg Step.val he).symm⟩
+
 mutual
 
 /-- Interpret a realizer into the partial monotone-update monad over the heap.
@@ -380,5 +439,83 @@ def scan (isTrue : V → Bool) (fuel : ℕ) (eqr : V → V → F V) (a : V) :
 termination_by entries => (fuel, entries.length + 1)
 
 end
+
+/-! ### Equation lemmas
+
+`run` and `scan` are defined by well-founded recursion, so they do not unfold
+definitionally; these are the equations proofs work with. -/
+
+variable {isTrue : V → Bool}
+
+@[simp] theorem run_zero (e : F V) : run isTrue 0 e = fun _ => none := by
+  rw [run]
+
+@[simp] theorem run_ret (n : ℕ) (v : V) : run isTrue (n + 1) (F.ret v) = PT.pure v := by
+  rw [run]
+
+@[simp] theorem run_memo (n : ℕ) (ℓ : Loc) (a : V) (k : V → F V) :
+    run isTrue (n + 1) (F.memo ℓ a k) = fun h =>
+      match h[ℓ]? with
+      | none => none
+      | some cell =>
+        (PT.bind (scan isTrue n cell.eqr a cell.cache) fun hit? =>
+          match hit? with
+          | some b => run isTrue n (k b)
+          | none =>
+            PT.bind (PT.bind (run isTrue n (cell.fam a)) (commitPT ℓ a)) fun b =>
+              run isTrue n (k b)) h := by
+  rw [run]
+
+@[simp] theorem run_alloc (n : ℕ) (eqr : V → V → F V) (fam : V → F V) (k : Loc → F V) :
+    run isTrue (n + 1) (F.alloc eqr fam k) =
+      PT.bind (allocPT eqr fam) fun ℓ => run isTrue n (k ℓ) := by
+  rw [run]
+
+@[simp] theorem scan_nil (fuel : ℕ) (eqr : V → V → F V) (a : V) :
+    scan isTrue fuel eqr a [] = PT.pure none := by
+  rw [scan]
+
+@[simp] theorem scan_cons (fuel : ℕ) (eqr : V → V → F V) (a key val : V)
+    (rest : List (V × V)) :
+    scan isTrue fuel eqr a ((key, val) :: rest) =
+      PT.bind (run isTrue fuel (eqr a key)) fun r =>
+        if isTrue r then PT.pure (some val) else scan isTrue fuel eqr a rest := by
+  rw [scan]
+
+/-- Inversion: running `ret` returns the value and leaves the heap alone. -/
+theorem run_ret_inv {fuel : ℕ} {v : V} {h : Heap V} {s : Step V h}
+    (hr : run isTrue fuel (F.ret v) h = some s) : s.next = h ∧ s.val = v := by
+  cases fuel with
+  | zero => rw [run_zero] at hr; cases hr
+  | succ n => rw [run_ret] at hr; exact PT.pure_eq_some hr
+
+/-- A successful scan hit returns a value stored in the cache. (The key it was
+stored under is existential: which entry matched depends on the eq realizer.) -/
+theorem scan_val_mem {fuel : ℕ} {eqr : V → V → F V} {a : V} {entries : List (V × V)} :
+    ∀ {h : Heap V} {s : Step (Option V) h} {b : V},
+      scan isTrue fuel eqr a entries h = some s → s.val = some b →
+      ∃ k, (k, b) ∈ entries := by
+  induction entries with
+  | nil =>
+    intro h s b hs hv
+    rw [scan_nil] at hs
+    obtain ⟨-, hval⟩ := PT.pure_eq_some hs
+    rw [hval] at hv
+    cases hv
+  | cons e rest ih =>
+    obtain ⟨key, val⟩ := e
+    intro h s b hs hv
+    rw [scan_cons] at hs
+    obtain ⟨s₁, -, s₂, hf, -, hval⟩ := PT.bind_eq_some hs
+    by_cases ht : isTrue s₁.val
+    · rw [if_pos ht] at hf
+      obtain ⟨-, hval₂⟩ := PT.pure_eq_some hf
+      rw [hval, hval₂] at hv
+      obtain rfl := Option.some.inj hv
+      exact ⟨key, List.mem_cons_self ..⟩
+    · rw [if_neg ht] at hf
+      have : s₂.val = some b := by rw [← hval, hv]
+      obtain ⟨k, hk⟩ := ih hf this
+      exact ⟨k, List.mem_cons_of_mem _ hk⟩
 
 end LeanStatefulAoc
