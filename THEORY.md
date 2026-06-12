@@ -200,13 +200,74 @@ Supersedes parts of the current file:
   Scope note: "EM fails in *the* model validating `AC_dec`" still requires
   K2+K3 — K1's topos-facing claim is about the presheaf algebra over this
   condition poset.
-- **K2**: `AC_dec` realized for data-valued `B`, realized-deceq index, arbitrary
+- **K2 increment 1: DONE 2026-06-13** (`Choice.lean`): `ValidAt` conditions;
+  `ValidAt.total` (totality + typing, miss path composed with the family's
+  termination via `run_fuel_mono`), `ValidAt.hit`/`ValidAt.stable`
+  (effect-free hits, persistent across valid extensions — behavioral
+  single-valuedness), `validAt_alloc` (staging). Index `A = ℕ`, pure
+  code-equality eq, frame premise assumed (see §7).
+- **K2, remaining**: `AC_dec` realized for data-valued `B`, realized-deceq index, arbitrary
   state-entangled family/eq (§4). Fuel/termination bookkeeping is the main labor.
 - **K3 (research)**: function-valued `B` (step-indexing / recursive worlds);
   internal `∀A` with condition-local equality partitions (the `2/~ₚ` firewall
   and the novelty claim live here); the truncation eliminator for the
   generic-section clause (routes (i)/(ii) of §4); kernel ↔ decision-bar-site
   correspondence; full Soundness.
+
+## 7. K2 increment 1: the precise statement (2026-06-13)
+
+Scope: index `A = ℕ`, pure code-equality eq; the deceq-`A` generalization is
+increment 2. Design decisions, each load-bearing:
+
+- **Codes**: reuse `V₀`. `B`-realizers are arbitrary `V₀`-codes via an
+  abstract `rel : (n : ℕ) → V₀ → B n → Prop` — data-ness (condition-freeness)
+  is structural in `rel`'s *type*, and countable data codes into `ℕ` in the
+  classical realizability tradition. Require `rel` **functional** (a code
+  denotes at most one value); with that, semantic single-valuedness reduces to
+  cache determinism.
+- **Conditions**: `ValidAt rel f ℓ h` — cell `ℓ` exists with label
+  `(eqCode, f)`, pairwise-distinct keys, and every entry `(k, b)` typed:
+  `k = nat n` and `rel n b y` for some `n, y`. This is §2's semantic
+  conditions specialized to this cell; the heap *is* the condition, the
+  semantic content is carried by the typing clause. (K1's persistence lesson:
+  distinct keys are non-negotiable.)
+- **Family premise** (the `‖B n‖`-clause, per-branch existential over the
+  valid cone): for every `ValidAt` heap `h` and every `n`, `run (f (nat n)) h`
+  terminates, preserves `ValidAt`, and its value `rel`-realizes some
+  `y : B n`.
+- **Frame premise**: runs of `f` leave cell `ℓ` untouched
+  (`s.next[ℓ]? = h[ℓ]?`). Justified by alloc-order acyclicity (`f` was
+  written before `ℓ` existed). Without it, `f` could insert the key between
+  the memoizer's scan-miss and its commit, breaking single-valuedness.
+  *Formalization note (2026-06-13):* in the shallow embedding this premise
+  cannot be discharged generically — `f` is an arbitrary Lean function and
+  `ℓ : ℕ` is just a number, so "`f`'s code does not mention `ℓ`" is not
+  expressible. It is discharged per-realizer (for concrete `f`, by induction
+  on the `F`-terms it produces). A generic discharge would need realizers as
+  syntax — a K3/deep-embedding consideration.
+- **Premise simplification found in Lean**: the family premise needs *no*
+  validity-preservation clause — increment-1 conditions constrain only cell
+  `ℓ`, which the frame premise says `f` never touches, so preservation is
+  automatic. (Multi-cell conditions in the full `Realizes` module will bring
+  the preservation clause back.)
+- **Conclusion** (the generic-section clause of §4, instantiated):
+  *totality+typing* — from every valid `h`, `memoizer ℓ (nat n)` terminates in
+  a valid heap with a value `b` such that `rel n b y` and `(nat n, b)` is in
+  the cache; *stability* — if `(nat n, b)` is cached, the memoizer returns `b`
+  **without extending the heap** (pure eq ⇒ hits are effect-free);
+  *single-valuedness* — across queries, by cache membership + distinctness +
+  functionality of `rel`.
+- **Staging**: the theorem is stated at a fixed `ℓ` under `ValidAt`; a
+  corollary connects the actual `AC_dec` program `F.alloc eqCode f k` — the
+  post-alloc state satisfies `ValidAt` with empty cache. No Loc-codes in `V`
+  needed.
+- **New infrastructure needed**: `run_fuel_mono` (success is preserved by more
+  fuel; needed to compose the memoizer's run with `f`'s run at a common fuel).
+
+Increment 2: abstract data index with a realized, lawful eq-code in place of
+`eqCode`/`nat`. Increment 3: discharge the frame premise via the general frame
+lemma; relativize the family premise's quantifier if the ‖·‖-clause shape
+needs refinement at `Realizes`-module time.
 
 Caveat on claims: K1/K2 deliver "EM is not realized" and "AC_dec is realized" at
 the ⊩-level; the stronger "a topos/model of MLTT where EM fails and AC_dec holds"

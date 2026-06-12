@@ -1,3 +1,4 @@
 import LeanStatefulAoc.Basic
+import LeanStatefulAoc.Choice
 import LeanStatefulAoc.Computation
 import LeanStatefulAoc.NonBoolean

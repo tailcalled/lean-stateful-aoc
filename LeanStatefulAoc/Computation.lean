@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 tailcalled. All rights reserved.
-Released under Apache 2.0 license as described in the file LICENSE.
-Authors: tailcalled
--/
 import Mathlib.Order.Basic
 import Mathlib.Data.List.Basic
 
@@ -166,6 +161,16 @@ theorem bind_eq_some {X : Type v} {Y : Type w} {m : PT P X} {f : X → PT P Y} {
     · have he := Option.some.inj h'
       exact ⟨s₁, rfl, s₂, hf,
         (congrArg Step.next he).symm, (congrArg Step.val he).symm⟩
+
+/-- Lift a success of `bind` along componentwise lifts (e.g. to more fuel). -/
+theorem bind_mono {X : Type v} {Y : Type w} {m m' : PT P X} {f f' : X → PT P Y}
+    (hm : ∀ (c : P) (s : Step X c), m c = some s → m' c = some s)
+    (hf : ∀ (x : X) (c : P) (s : Step Y c), f x c = some s → f' x c = some s) :
+    ∀ (c : P) (s : Step Y c), PT.bind m f c = some s → PT.bind m' f' c = some s := by
+  intro c s h
+  obtain ⟨s₁, h₁, s₂, h₂, hn, hv⟩ := PT.bind_eq_some h
+  rw [PT.bind_some (hm _ _ h₁) (hf _ _ _ h₂)]
+  exact congrArg some (Step.ext hn.symm hv.symm)
 
 end PT
 
@@ -488,6 +493,79 @@ theorem run_ret_inv {fuel : ℕ} {v : V} {h : Heap V} {s : Step V h}
   cases fuel with
   | zero => rw [run_zero] at hr; cases hr
   | succ n => rw [run_ret] at hr; exact PT.pure_eq_some hr
+
+/-! ### Fuel monotonicity
+
+Success is stable under extra fuel — needed to compose independently-obtained
+runs at a common fuel. -/
+
+/-- Scan inherits fuel monotonicity from a run-level lift at the same fuels. -/
+theorem scan_fuel_mono_aux {n n' : ℕ}
+    (ihrun : ∀ (e : F V) (h : Heap V) (s : Step V h),
+      run isTrue n e h = some s → run isTrue n' e h = some s) :
+    ∀ {entries : List (V × V)} {eqr : V → V → F V} {a : V} {h : Heap V}
+      {s : Step (Option V) h},
+      scan isTrue n eqr a entries h = some s →
+        scan isTrue n' eqr a entries h = some s := by
+  intro entries
+  induction entries with
+  | nil =>
+    intro eqr a h s hs
+    rw [scan_nil] at hs
+    rw [scan_nil]
+    exact hs
+  | cons e rest ih =>
+    obtain ⟨key, val⟩ := e
+    intro eqr a h s hs
+    rw [scan_cons] at hs
+    rw [scan_cons]
+    refine PT.bind_mono (fun c s' h' => ihrun _ _ _ h') ?_ h s hs
+    intro r c s' h'
+    by_cases ht : isTrue r
+    · rw [if_pos ht] at h' ⊢
+      exact h'
+    · rw [if_neg ht] at h' ⊢
+      exact ih h'
+
+/-- **Fuel monotonicity**: a successful run stays successful, with the same
+result, at any larger fuel. -/
+theorem run_fuel_mono :
+    ∀ {fuel fuel' : ℕ}, fuel ≤ fuel' →
+      ∀ {e : F V} {h : Heap V} {s : Step V h},
+        run isTrue fuel e h = some s → run isTrue fuel' e h = some s := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro fuel' _ e h s hs
+    rw [run_zero] at hs
+    cases hs
+  | succ m ihm =>
+    intro fuel' hle e h s hs
+    obtain ⟨m', rfl⟩ : ∃ m', fuel' = m' + 1 := ⟨fuel' - 1, by omega⟩
+    have hm : m ≤ m' := by omega
+    cases e with
+    | ret v =>
+      rw [run_ret] at hs
+      rw [run_ret]
+      exact hs
+    | memo ℓ a k =>
+      simp only [run_memo] at hs ⊢
+      rcases hcell : h[ℓ]? with _ | cell
+      · rw [hcell] at hs
+        simp at hs
+      · rw [hcell] at hs
+        refine PT.bind_mono
+          (fun c s' h' => scan_fuel_mono_aux (fun _ _ _ hr => ihm hm hr) h') ?_ h s hs
+        intro hit? c s' h'
+        rcases hit? with _ | b
+        · exact PT.bind_mono
+            (PT.bind_mono (fun _ _ hr => ihm hm hr) (fun _ _ _ hc => hc))
+            (fun _ _ _ hr => ihm hm hr) c s' h'
+        · exact ihm hm h'
+    | alloc eqr fam k =>
+      rw [run_alloc] at hs
+      rw [run_alloc]
+      exact PT.bind_mono (fun _ _ ha => ha) (fun _ _ _ hr => ihm hm hr) h s hs
 
 /-- A successful scan hit returns a value stored in the cache. (The key it was
 stored under is existential: which entry matched depends on the eq realizer.) -/

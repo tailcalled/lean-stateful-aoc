@@ -158,11 +158,14 @@ In order:
    That algebra is the truth-value algebra of the presheaf topos over the
    condition poset; the identification, and the sheaf topos for the decision
    coverage, remain on paper (K3).
-2. **K2 — `AC_dec` for data-valued `B`.** Index `A` with realized,
-   condition-stable decidable equality; family and eq realizers arbitrary and
-   state-entangled. Main labor: fuel/termination bookkeeping — the interpreter
-   cannot be seen total by Lean, so each realizability statement carries its own
-   termination witness, BBC-style.
+2. **K2 — `AC_dec` for data-valued `B`.** 🔶 **Increment 1 done**
+   (`Choice.lean`, index `ℕ`, pure code-equality eq): the generic-section
+   clause for the memoizer over `ValidAt` conditions — totality + typing
+   (`ValidAt.total`, the miss path composing with the family's own
+   termination), stability/single-valuedness (`ValidAt.hit`,
+   `ValidAt.stable`), staging (`validAt_alloc`). Remaining: index types with
+   *realized* decidable equality beyond `ℕ` (increment 2); the frame premise
+   stays an assumption in the shallow embedding (`THEORY.md` §7).
 3. **K3 — research tier.** Function-valued `B` (honest higher-order store:
    step-indexing / recursive worlds); the internal `∀A` closure with
    condition-*local* equality classes (a section of `(=) + ¬(=)` is a partition
