@@ -165,10 +165,11 @@ In order:
 
 ## Lean layout
 
-1. `Computation` — the monotone-update monad `T` (done, with a verified
-   `LawfulMonad` instance); the heap and its extension order (done; being
-   reshaped per `THEORY.md` §5); the mono-sorted free monad of realizer terms
-   with memo-only operation and allocation; the fuel-indexed interpreter.
+1. `Computation` — **done**: the monotone-update monad `T` (verified
+   `LawfulMonad`) and its partial variant `PT`; the grow-only heap of cells
+   with its extension `PartialOrder`; the mono-sorted free monad `F` of
+   realizer terms (memo-only operation, allocation, monad laws); the
+   fuel-indexed interpreter `run` with eq-guarded scan.
 2. `Realizes` — the ⊩-kernel.
 3. `NonBoolean` — K1.
 4. `Choice` — K2: the memoizer; `AC_dec` via totality + single-valuedness.

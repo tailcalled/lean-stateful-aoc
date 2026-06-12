@@ -157,8 +157,14 @@ Supersedes parts of the current file:
   cannot see termination. Each realizer's ⊩-statement carries its own
   termination (∃ fuel), BBC-style. (Loc-allocation order makes memo recursion
   well-founded semantically; fuel is the formal vehicle.)
-- `Heap` reshaped: `Finmap Loc CellState`, `CellState` = label (eq/family
-  fields) × cache. `T` and the extension `PartialOrder` survive as-is.
+- `Heap` reshaped: a **grow-only `List (Cell V)`** with `Loc` = stable index
+  (improves on the earlier `Finmap Loc CellState` plan: allocation is append,
+  freshness is free, and no `DecidableEq V` is needed anywhere — the eq
+  realizer does all key routing). `Cell` = label (eq/family fields) × cache
+  (newest-first entry list); cell extension = same label + cache suffix order.
+  `T` and the extension `PartialOrder` survive; `run` lands in the *partial*
+  monotone-update monad `PT` (fuel exhaustion / stuck op return `none`, with
+  no condition extension).
 - `Realizes` (new module): conditions = semantic typed finite sections; clauses
   per type-shape needed for the two theorems only (Π over `A`, data `B`, `‖·‖`
   with the §4 generic-section clause for `‖Π‖`, `∨`, `=`, `¬`) — a **⊩-kernel**,
