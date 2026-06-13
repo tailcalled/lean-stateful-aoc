@@ -150,12 +150,18 @@ the excluded middle provably comes from the cell, not from Lean. You cannot even
 *build* the data to run the memoizer over `2/~ₚ` without already deciding `P`;
 `AC_dec` consumes the EM it is given and manufactures none.
 
-**Still open.** That covers the *global, pure* eq-code. The genuine frontier is
-an *effectful, only-locally-decidable* eq realizer — one that refines the
-condition to decide equality on a cover (a section of `(=) + ¬(=)` is a
-partition of a cover) without ever deciding `P` globally. Whether the memoizer
-works with such local eq, and whether it still leaks nothing, is the heart of
-the internal `∀A` closure and is unproven (`THEORY.md` §8).
+**Still open — and now sharper.** That covers the *global, pure* eq-code.
+Attempting the effectful generalization produced a course-correction
+(`effectful_glue_firewall`): because `run` is deterministic, an *effectful* eq
+realizer gives one verdict per condition, and a sound verdict still decides `P`
+— so **effects per se do not escape the firewall**. The genuine escape is
+per-branch non-determinism: an eq that answers `inl` on the cover branch where
+`P` and `inr` where `¬P`, deciding `P` on neither (a section of `(=) + ¬(=)` is
+a partition of a cover). A single deterministic run cannot express that, so the
+local-eq firewall is a *`⊩`-level* statement over cover branches, not an
+operational one. The productive next step is therefore the `⊩`-semantics layer
+(`Realizes`), where value-blindness over branches can be stated and attacked —
+not more effectful machinery (`THEORY.md` §8).
 
 ## What remains
 

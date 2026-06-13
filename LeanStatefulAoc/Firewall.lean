@@ -119,4 +119,33 @@ def acCell_glue_decidesP {B : Glue P → Type v} (C : AcCell (Glue P) B)
     (h₁ : C.KeyRel k₁ (Glue.mk P false)) : Decidable P :=
   decidable_of_iff _ ((C.sound h₀ h₁).trans mk_true_eq_mk_false_iff)
 
+/-- **Effects do not escape the firewall.** Internalize eq as an *effectful*
+realizer `eqr : V₀ → V₀ → F V₀`. Suppose running it on the two `Glue P`
+point-codes from some heap `h` terminates (`hrun`) with a verdict that is
+*sound there* (`hsound`: the decoded boolean tracks semantic equality of the two
+points). Then `P ∨ ¬P`, constructively.
+
+The moral: a single run of the deterministic monad yields a *definite* verdict,
+and a definite sound verdict on `Glue P` decides `P`. So allowing eq to read and
+extend the heap buys nothing toward escaping the firewall. The only escape is
+for `eqr` to have *no* terminating sound verdict from the root at all — genuine
+per-branch (sheaf) genericity, where eq answers differently on different cover
+branches and so decides `P` on *none*. That lives in the ⊩-semantics (the
+quantification over branches), not in any single deterministic run; it is the
+real open frontier (`THEORY.md` §8), and this lemma pins down that *effects per
+se* are not it. -/
+theorem effectful_glue_firewall {eqr : V₀ → V₀ → F V₀} {k₀ k₁ : V₀}
+    {h : Heap V₀} {fuel : ℕ} {s : Step V₀ h}
+    (_hrun : run isTrue₀ fuel (eqr k₀ k₁) h = some s)
+    (hsound : isTrue₀ s.val = true ↔ Glue.mk P true = Glue.mk P false) :
+    P ∨ ¬P := by
+  rw [mk_true_eq_mk_false_iff] at hsound
+  cases hb : isTrue₀ s.val with
+  | false =>
+    refine Or.inr fun hP => ?_
+    have h1 : isTrue₀ s.val = true := hsound.mpr hP
+    rw [hb] at h1
+    exact Bool.noConfusion h1
+  | true => exact Or.inl (hsound.mp hb)
+
 end LeanStatefulAoc

@@ -344,6 +344,31 @@ deciding `P` globally. Two open questions there:
    some cover — an observational/`⊩`-level statement, the honest heart of the
    `∀A` value-blindness closure. **Open.**
 
+**Course-correction (2026-06-13), worked out while attempting the effectful
+machinery — `effectful_glue_firewall`.** Replacing pure `eqb` by an effectful
+`eqr : V₀ → V₀ → F V₀` does *not*, by itself, reach the open frontier. `run` is
+**deterministic**: from any fixed heap `h`, `run (eqr k₀ k₁) h` yields at most
+one verdict, and if that verdict is *sound* (which the memoizer needs anyway,
+for single-valued routing) it is a definite boolean that decides `P`. Formalized
+and `Classical.choice`-free. Consequence for the project's plan:
+
+- The escape is **not** "effects". `eqr` reading/extending the heap changes
+  nothing — a single run still commits to one answer. The escape is genuine
+  **non-determinism across cover branches**: `eqr` answering `true` on the
+  branch where `P` and `false` on the branch where `¬P`, deciding `P` on
+  *neither*. A single deterministic `run` cannot express this; it follows one
+  branch. So **the local-eq firewall is a `⊩`-level (per-branch) statement, not
+  an operational one** — building a heavier effectful `AcCell` with
+  operationally-sound-from-root `eqr` would still be inside the global case and
+  would still satisfy `acCell_glue_firewall`'s hypothesis shape.
+- Therefore the productive next step is **not** more effectful eq machinery in
+  `Computation`/`Choice`; it is the **`⊩`-semantics layer** (§5's `Realizes`
+  module): define `e ⊩ᵀ_c X` quantifying over the cover branches / oracles, lift
+  the memoizer's single-run results to it, and *there* state and attack the
+  local-eq firewall as value-blindness over branches. The effectful
+  generalization of `AcCell.eqr` becomes worthwhile only once eq must answer
+  branch-locally, i.e. inside that `⊩` layer — not before.
+
 Caveat on claims: K1/K2 deliver "EM is not realized" and "AC_dec is realized" at
 the ⊩-level; the stronger "a topos/model of MLTT where EM fails and AC_dec holds"
 needs Soundness (K3). The firewall result (§8) covers the global/pure eq case;
