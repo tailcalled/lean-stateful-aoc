@@ -1,0 +1,122 @@
+import LeanStatefulAoc.Choice
+
+/-!
+# The Diaconescu firewall, formalized (K3, first result)
+
+The slogan "`AC_dec` cannot bootstrap EM" (README) made precise in the
+project's own terms. The Diaconescu obstruction is `2/~ₚ` — two points of
+`Bool` glued iff a proposition `P` holds (`Glue P`). Its decidable equality is
+*exactly* `P ∨ ¬P`: `⟦true⟧ = ⟦false⟧ ↔ P`.
+
+The key result `acCell_glue_firewall`: an `AcCell (Glue P) B` — the data needed
+to run the memoizer over this index — together with key codes for the two
+points entails `P ∨ ¬P`. So `AC_dec` over `Glue P` *consumes* the excluded
+middle for `P`; it never produces it. The memoizer adds nothing: routing a
+query is the *only* way to interact with the cell (the syntax `F` exposes no
+introspection — no key enumeration, cache-size, or cell-identity comparison),
+and routing is precisely an eq-realizer call, which `sound` ties to index
+equality, which here is `P`.
+
+## Honest scope
+
+This proves the firewall for the **global / pure** eq-code that `AcCell`
+currently carries: building the cell requires `eqb` to *globally* decide
+`P`. The genuinely hard frontier — an **effectful, only-locally-decidable** eq
+realizer (`eqr : V₀ → V₀ → F V₀` that refines the condition to decide
+equality on a cover, never deciding `P` globally) — is *not* settled here: that
+the memoizer over such a local eq still leaks nothing is the open
+`Realizes`-tier problem (`THEORY.md` §8). What is shown is that the soundness
+*obligation* is the carrier of the obstruction, independent of effects.
+-/
+
+namespace LeanStatefulAoc
+
+universe v
+
+variable (P : Prop)
+
+/-- The gluing relation on `Bool`: equal, or identified because `P` holds. -/
+def glueRel (a b : Bool) : Prop := a = b ∨ P
+
+theorem glueRel.refl (a : Bool) : glueRel P a a := Or.inl rfl
+
+theorem glueRel.symm {a b : Bool} : glueRel P a b → glueRel P b a
+  | Or.inl h => Or.inl h.symm
+  | Or.inr h => Or.inr h
+
+theorem glueRel.trans {a b c : Bool} : glueRel P a b → glueRel P b c → glueRel P a c
+  | Or.inl h₁, Or.inl h₂ => Or.inl (h₁.trans h₂)
+  | Or.inr h, _ => Or.inr h
+  | _, Or.inr h => Or.inr h
+
+/-- The setoid identifying the two booleans iff `P`. -/
+def glueSetoid : Setoid Bool where
+  r := glueRel P
+  iseqv := ⟨glueRel.refl P, glueRel.symm P, glueRel.trans P⟩
+
+/-- `2/~ₚ`: two points glued iff `P`. -/
+def Glue : Type := Quotient (glueSetoid P)
+
+/-- A boolean as a point of `Glue P`. -/
+def Glue.mk (b : Bool) : Glue P := Quotient.mk (glueSetoid P) b
+
+variable {P}
+
+theorem glue_eq_iff {a b : Bool} : Glue.mk P a = Glue.mk P b ↔ (a = b ∨ P) :=
+  ⟨fun h => Quotient.exact h, fun h => Quotient.sound h⟩
+
+/-- The two points of `Glue P` are equal **iff `P`** — its decidable equality
+is the excluded middle for `P`. -/
+theorem mk_true_eq_mk_false_iff : Glue.mk P true = Glue.mk P false ↔ P := by
+  rw [glue_eq_iff]
+  constructor
+  · rintro (h | h)
+    · exact absurd h (by decide)
+    · exact h
+  · exact fun h => Or.inr h
+
+/-- Deciding equality of the two points decides `P`. -/
+def decidableP_of_decEqGlue (d : DecidableEq (Glue P)) : Decidable P :=
+  decidable_of_iff _ mk_true_eq_mk_false_iff
+
+/-- Conversely, deciding `P` decides equality on `Glue P`. -/
+def decEqGlue_of_decidableP (d : Decidable P) : DecidableEq (Glue P) := by
+  intro x y
+  refine Quotient.recOnSubsingleton₂ x y fun a b => ?_
+  exact decidable_of_iff _ (glue_eq_iff (a := a) (b := b)).symm
+
+/-- A `Decidable` instance hands back the excluded middle for its proposition
+(constructively — no `Classical`). -/
+theorem em_of_decidable {Q : Prop} (d : Decidable Q) : Q ∨ ¬Q :=
+  match d with
+  | isTrue h => Or.inl h
+  | isFalse h => Or.inr h
+
+/-- **The firewall.** Any `AcCell` over the Diaconescu index `Glue P`, together
+with key codes realizing its two points, entails `P ∨ ¬P`. Building the data
+that lets the memoizer run over `Glue P` already requires the excluded middle
+for `P`; `AC_dec` therefore returns only the EM it was given.
+
+The proof uses the *actual boolean* `C.eqb k₀ k₁` to decide `P` — it is
+constructive, and the EM comes entirely from the soundness obligation on the
+supplied eq-code, not from the memoizer. -/
+theorem acCell_glue_firewall {B : Glue P → Type v} (C : AcCell (Glue P) B)
+    {k₀ k₁ : V₀} (h₀ : C.KeyRel k₀ (Glue.mk P true))
+    (h₁ : C.KeyRel k₁ (Glue.mk P false)) : P ∨ ¬P := by
+  have hiff : C.eqb k₀ k₁ = true ↔ P :=
+    (C.sound h₀ h₁).trans mk_true_eq_mk_false_iff
+  cases hb : C.eqb k₀ k₁ with
+  | false =>
+    refine Or.inr fun hP => ?_
+    have : (false : Bool) = true := hb ▸ hiff.mpr hP
+    exact Bool.noConfusion this
+  | true => exact Or.inl (hiff.mp hb)
+
+/-- Restated as a decision procedure: the eq-code of any `AcCell` over
+`Glue P` *is* a decision of `P`. -/
+def acCell_glue_decidesP {B : Glue P → Type v} (C : AcCell (Glue P) B)
+    {k₀ k₁ : V₀} (h₀ : C.KeyRel k₀ (Glue.mk P true))
+    (h₁ : C.KeyRel k₁ (Glue.mk P false)) : Decidable P :=
+  decidable_of_iff _ ((C.sound h₀ h₁).trans mk_true_eq_mk_false_iff)
+
+end LeanStatefulAoc

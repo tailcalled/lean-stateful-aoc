@@ -487,6 +487,28 @@ variable {isTrue : V → Bool}
         if isTrue r then PT.pure (some val) else scan isTrue fuel eqr a rest := by
   rw [scan]
 
+/-- Scanning with a *pure* eq-code skips a prefix it answers `false` on. -/
+theorem scan_ret_skip {g : V → V → V} {fuel : ℕ} {a : V} {rest : List (V × V)} :
+    ∀ {l₁ : List (V × V)}, (∀ p ∈ l₁, isTrue (g a p.1) = false) →
+      scan isTrue (fuel + 1) (fun x y => F.ret (g x y)) a (l₁ ++ rest) =
+        scan isTrue (fuel + 1) (fun x y => F.ret (g x y)) a rest := by
+  intro l₁
+  induction l₁ with
+  | nil => intro _; rfl
+  | cons p l ih =>
+    obtain ⟨k, v⟩ := p
+    intro hno
+    rw [List.cons_append, scan_cons, run_ret, PT.pure_bind]
+    rw [if_neg (by rw [hno (k, v) (List.mem_cons_self ..)]; exact Bool.false_ne_true)]
+    exact ih fun p hp => hno p (List.mem_cons_of_mem _ hp)
+
+/-- Scanning with a pure eq-code hits a head entry it answers `true` on. -/
+theorem scan_ret_hit {g : V → V → V} {fuel : ℕ} {a k b : V} {rest : List (V × V)}
+    (h : isTrue (g a k) = true) :
+    scan isTrue (fuel + 1) (fun x y => F.ret (g x y)) a ((k, b) :: rest) =
+      PT.pure (some b) := by
+  rw [scan_cons, run_ret, PT.pure_bind, if_pos h]
+
 /-- Inversion: running `ret` returns the value and leaves the heap alone. -/
 theorem run_ret_inv {fuel : ℕ} {v : V} {h : Heap V} {s : Step V h}
     (hr : run isTrue fuel (F.ret v) h = some s) : s.next = h ∧ s.val = v := by

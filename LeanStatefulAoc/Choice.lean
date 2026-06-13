@@ -3,172 +3,321 @@ import LeanStatefulAoc.NonBoolean
 /-!
 # Choice: the memoizer realizes `AC_dec` (K2)
 
-Increment 1 of K2 (`THEORY.md` §7): index `A = ℕ`, pure code-equality eq,
-values in an abstract data family `B : ℕ → Type` realized by an abstract
-condition-free relation `rel : (n : ℕ) → V₀ → B n → Prop`. Data-ness is
-structural in `rel`'s type; functionality of `rel` reduces semantic
-single-valuedness to cache determinism.
+K2 increment 2 (`THEORY.md` §7): an abstract index type `A` with **realized
+decidable equality** — the cell's eq-code decides a PER on key codes (distinct
+codes may realize the same index; eq-routing collapses them, which is exactly
+"decidable equality is persistence of the key-partition"). Values live in an
+abstract data family `B : A → Type` realized by a condition-free
+`rel : (x : A) → V₀ → B x → Prop`; data-ness is structural in `rel`'s type.
 
-Contents: the condition predicate `ValidAt` (the semantic conditions of
-`THEORY.md` §2, specialized to one `AC_dec` cell) and the generic-section
-clause for the memoizer over it — **totality + typing** (`ValidAt.total`: the
-miss path runs the cell's own family and commits), **stability**
-(`ValidAt.hit`, `ValidAt.stable`: hits are effect-free and persist across all
-valid extensions — behavioral single-valuedness; with `rel` functional, also
-semantic single-valuedness), and **staging** (`validAt_alloc`: the `AC_dec`
-program's allocation step establishes `ValidAt`).
+The data of one `AC_dec` application is bundled as `AcCell`. Over its valid
+conditions (`AcCell.ValidAt`) the memoizer satisfies the generic-section
+clause: **totality + typing** (`AcCell.total` — the miss path runs the cell's
+own family and commits at the queried key code), **stability**
+(`AcCell.hit_run`, `AcCell.stable` — hits are effect-free and persist across
+valid extensions; with `rel` functional this is semantic single-valuedness),
+and **staging** (`AcCell.validAt_alloc`, `AcCell.acDec_realized` — the
+`AC_dec` program allocates the cell and returns its location).
+
+The increment-1 instance (`A = ℕ`, code equality) is `natCell` at the end.
 -/
 
 namespace LeanStatefulAoc
 
-universe u
+universe u v
 
-variable {B : ℕ → Type u}
+variable {A : Type u} {B : A → Type v}
 
-/-- The condition predicate for an `AC_dec` cell at `ℓ` with family `f`:
-the cell exists, owns the label `(eqCode, f)`, its keys are pairwise-distinct
-numerals, and every entry realizes some value of the family. This is the
-semantic-conditions discipline of `THEORY.md` §2 specialized to one cell. -/
-def ValidAt (rel : (n : ℕ) → V₀ → B n → Prop) (f : V₀ → F V₀) (ℓ : Loc)
-    (h : Heap V₀) : Prop :=
-  ∃ cell, h[ℓ]? = some cell ∧ cell.eqr = eqCode ∧ cell.fam = f ∧
-    (cell.cache.Pairwise fun p q => p.1 ≠ q.1) ∧
-    ∀ p ∈ cell.cache, ∃ n y, p.1 = V₀.nat n ∧ rel n p.2 y
+/-- The data of one `AC_dec` application: how key codes realize indices, the
+pure eq-code, how value codes realize family members, and the family realizer.
+`sound` says the eq-code *realizes decidable equality of `A`*: on realizing
+codes it answers `true` exactly on equal indices. It is a decidable PER on
+codes — distinct codes may realize the same index. -/
+structure AcCell (A : Type u) (B : A → Type v) : Type (max u v) where
+  /-- key codes realizing indices -/
+  KeyRel : V₀ → A → Prop
+  /-- the pure eq-code -/
+  eqb : V₀ → V₀ → Bool
+  /-- value codes realizing family members -/
+  rel : (x : A) → V₀ → B x → Prop
+  /-- the family realizer (of `Π x. ‖B x‖`) -/
+  fam : V₀ → F V₀
+  /-- the eq-code realizes decidable equality of the index -/
+  sound : ∀ {k : V₀} {x : A} {k' : V₀} {x' : A},
+    KeyRel k x → KeyRel k' x' → (eqb k k' = true ↔ x = x')
 
-/-- A cache hit, in general form: if `(a, b)` is cached in a distinct-key cell
-routed by `eqCode`, the memoizer at key `a` returns `b` and leaves the heap
-unchanged (pure eq makes hits effect-free). Fuel `2` always suffices. -/
-theorem memoizer_hit {h : Heap V₀} {ℓ : Loc} {cell : Cell V₀} {a b : V₀}
-    (hcell : h[ℓ]? = some cell) (heqr : eqCode = cell.eqr)
-    (hkd : cell.cache.Pairwise fun p q => p.1 ≠ q.1)
-    (hmem : (a, b) ∈ cell.cache) :
+namespace AcCell
+
+variable (C : AcCell A B)
+
+/-- The cell's eq realizer: the eq-code, packaged as a (pure) program. -/
+abbrev eqr : V₀ → V₀ → F V₀ := fun a k => F.ret (.bool (C.eqb a k))
+
+/-- The `AC_dec` program: allocate a cell owning the eq and family realizers,
+return its location as a numeral code. The staged choice function is
+`memoizer ℓ`. -/
+def acDecProg : F V₀ := F.alloc C.eqr C.fam fun ℓ => F.ret (V₀.nat ℓ)
+
+/-- Valid conditions for the cell at `ℓ`: it exists, owns the label, its keys
+are pairwise eqb-inequivalent (the condition is a finite partial function on
+*indices*, not codes), and every entry realizes: key code realizes an index,
+value code realizes a member of the family there. -/
+def ValidAt (ℓ : Loc) (h : Heap V₀) : Prop :=
+  ∃ cell, h[ℓ]? = some cell ∧ cell.eqr = C.eqr ∧ cell.fam = C.fam ∧
+    (cell.cache.Pairwise fun p q => C.eqb p.1 q.1 = false) ∧
+    ∀ p ∈ cell.cache, ∃ x y, C.KeyRel p.1 x ∧ C.rel x p.2 y
+
+variable {C}
+
+/-- The eq-code is reflexive on realizing codes. -/
+theorem eqb_self {k : V₀} {x : A} (hk : C.KeyRel k x) : C.eqb k k = true :=
+  (C.sound hk hk).mpr rfl
+
+/-- A code realizes at most one index. -/
+theorem keyRel_fn {k : V₀} {x x' : A} (h1 : C.KeyRel k x) (h2 : C.KeyRel k x') :
+    x = x' :=
+  (C.sound h1 h2).mp (eqb_self h1)
+
+/-- A cache hit, run-level: if some entry's key realizes the queried index,
+the memoizer returns that entry's value and leaves the heap unchanged. The
+query code `a` need not be the stored code `k` — eq-routing collapses the
+PER. -/
+theorem hit_run {ℓ : Loc} {h : Heap V₀} {cell : Cell V₀} {a k b : V₀} {x : A}
+    (hcell : h[ℓ]? = some cell) (heqr : cell.eqr = C.eqr)
+    (hkd : cell.cache.Pairwise fun p q => C.eqb p.1 q.1 = false)
+    (htyped : ∀ p ∈ cell.cache, ∃ x y, C.KeyRel p.1 x ∧ C.rel x p.2 y)
+    (hKa : C.KeyRel a x) (hKk : C.KeyRel k x) (hmem : (k, b) ∈ cell.cache) :
     run isTrue₀ 2 (memoizer ℓ a) h = some ⟨h, le_refl h, b⟩ := by
   obtain ⟨l₁, l₂, hsplit⟩ := List.append_of_mem hmem
-  have hno : ∀ p ∈ l₁, p.1 ≠ a := by
+  have hno : ∀ p ∈ l₁, isTrue₀ (V₀.bool (C.eqb a p.1)) = false := by
     intro p hp
-    rw [hsplit] at hkd
-    exact (List.pairwise_append.mp hkd).2.2 p hp _ (List.mem_cons_self ..)
+    obtain ⟨x', y', hKp, -⟩ :=
+      htyped p (by rw [hsplit]; exact List.mem_append_left _ hp)
+    have hpk : C.eqb p.1 k = false := by
+      rw [hsplit] at hkd
+      exact (List.pairwise_append.mp hkd).2.2 p hp _ (List.mem_cons_self ..)
+    have hfalse : C.eqb a p.1 = false := by
+      cases heq : C.eqb a p.1
+      · rfl
+      · exfalso
+        have hx : x = x' := (C.sound hKa hKp).mp heq
+        have htrue : C.eqb p.1 k = true := (C.sound hKp hKk).mpr hx.symm
+        rw [hpk] at htrue
+        cases htrue
+    rw [hfalse, isTrue₀_bool]
+  have hhit : isTrue₀ (V₀.bool (C.eqb a k)) = true := by
+    rw [(C.sound hKa hKk).mpr rfl, isTrue₀_bool]
   simp only [memoizer, run_memo, hcell]
-  rw [← heqr, hsplit, scan_skip hno, scan_hit_head, PT.pure_bind]
+  rw [heqr, hsplit, scan_ret_skip hno, scan_ret_hit hhit, PT.pure_bind]
   simp [run_ret]
 
-/-- **Stability + typing on hits**: on a valid condition with `(nat n, b)`
-cached, the memoizer returns `b` without extending the heap, and `b` realizes
-an element of `B n`. Together with key-distinctness this is the behavioral
-single-valuedness of the generic-section clause: every later query at `n`
-finds the same entry, hence the same code, hence (by functionality of `rel`)
-the same value. -/
-theorem ValidAt.hit {rel : (n : ℕ) → V₀ → B n → Prop} {f : V₀ → F V₀}
-    {ℓ : Loc} {h : Heap V₀} {n : ℕ} {b : V₀} {cell : Cell V₀}
-    (hv : ValidAt rel f ℓ h) (hcell : h[ℓ]? = some cell)
-    (hmem : (V₀.nat n, b) ∈ cell.cache) :
-    run isTrue₀ 2 (memoizer ℓ (V₀.nat n)) h = some ⟨h, le_refl h, b⟩ ∧
-      ∃ y, rel n b y := by
+/-- **Stability + typing on hits** over valid conditions. -/
+theorem hit {ℓ : Loc} {h : Heap V₀} {cell : Cell V₀} {a k b : V₀} {x : A}
+    (hv : C.ValidAt ℓ h) (hcell : h[ℓ]? = some cell)
+    (hKa : C.KeyRel a x) (hKk : C.KeyRel k x) (hmem : (k, b) ∈ cell.cache) :
+    run isTrue₀ 2 (memoizer ℓ a) h = some ⟨h, le_refl h, b⟩ ∧
+      ∃ y, C.rel x b y := by
   obtain ⟨cell', hcell', heqr, -, hkd, htyped⟩ := hv
   obtain rfl := Option.some.inj (hcell'.symm.trans hcell)
-  refine ⟨memoizer_hit hcell heqr.symm hkd hmem, ?_⟩
-  obtain ⟨n', y, hkey, hrel⟩ := htyped _ hmem
-  obtain rfl : n = n' := by cases hkey; rfl
+  refine ⟨hit_run hcell heqr hkd htyped hKa hKk hmem, ?_⟩
+  obtain ⟨x', y, hK', hrel⟩ := htyped _ hmem
+  obtain rfl : x = x' := keyRel_fn hKk hK'
   exact ⟨y, hrel⟩
+
+/-- **Stability across extensions**: a committed entry answers every later
+query (at any code realizing its index) from any valid extension,
+effect-free. With functionality of `rel`, the section's value at each index
+is settled at commit time. -/
+theorem stable {ℓ : Loc} {h h' : Heap V₀} {cell : Cell V₀} {a k b : V₀} {x : A}
+    (hv' : C.ValidAt ℓ h') (hle : h ≤ h') (hcell : h[ℓ]? = some cell)
+    (hKa : C.KeyRel a x) (hKk : C.KeyRel k x) (hmem : (k, b) ∈ cell.cache) :
+    run isTrue₀ 2 (memoizer ℓ a) h' = some ⟨h', le_refl h', b⟩ ∧
+      ∃ y, C.rel x b y := by
+  obtain ⟨cell', hcell', hLe⟩ := hle ℓ cell hcell
+  obtain ⟨p, hp⟩ := hLe.2.2
+  refine hit hv' hcell' hKa hKk ?_
+  rw [hp]
+  exact List.mem_append_right p hmem
 
 /-- **Totality + typing**: from any valid condition the memoizer terminates;
 on a miss it runs the cell's *own* family — whose termination and typing is
-the `Π n. ‖B n‖` premise — and commits the result at the queried key. The
-answer realizes an element of `B n` and is cached in the resulting valid
-condition, so all later queries at `n` are stable hits.
+the `Π x. ‖B x‖` premise — and commits the result at the queried key code.
+The answer realizes a member of `B x` and is cached under a code realizing
+`x`, so all later queries at `x` are stable hits.
 
-The premise needs no validity-preservation clause: increment-1 conditions
-constrain only cell `ℓ`, and the frame premise says `f` never touches it. -/
-theorem ValidAt.total {rel : (n : ℕ) → V₀ → B n → Prop} {f : V₀ → F V₀} {ℓ : Loc}
-    (hf : ∀ (h : Heap V₀), ValidAt rel f ℓ h → ∀ n : ℕ,
+The premise needs no validity-preservation clause: conditions constrain only
+cell `ℓ`, which the frame premise says the family never touches. -/
+theorem total {ℓ : Loc}
+    (hf : ∀ h, C.ValidAt ℓ h → ∀ (a : V₀) (x : A), C.KeyRel a x →
       ∃ (fuel : ℕ) (s : Step V₀ h),
-        run isTrue₀ fuel (f (V₀.nat n)) h = some s ∧ ∃ y, rel n s.val y)
+        run isTrue₀ fuel (C.fam a) h = some s ∧ ∃ y, C.rel x s.val y)
     (hframe : ∀ (a : V₀) (fuel : ℕ) (h : Heap V₀) (s : Step V₀ h),
-      run isTrue₀ fuel (f a) h = some s → s.next[ℓ]? = h[ℓ]?)
-    {h : Heap V₀} (hv : ValidAt rel f ℓ h) (n : ℕ) :
+      run isTrue₀ fuel (C.fam a) h = some s → s.next[ℓ]? = h[ℓ]?)
+    {h : Heap V₀} (hv : C.ValidAt ℓ h) {a : V₀} {x : A} (hKa : C.KeyRel a x) :
     ∃ (fuel : ℕ) (s : Step V₀ h),
-      run isTrue₀ fuel (memoizer ℓ (V₀.nat n)) h = some s ∧
-      ValidAt rel f ℓ s.next ∧ (∃ y, rel n s.val y) ∧
-      ∃ cell, s.next[ℓ]? = some cell ∧ (V₀.nat n, s.val) ∈ cell.cache := by
+      run isTrue₀ fuel (memoizer ℓ a) h = some s ∧
+      C.ValidAt ℓ s.next ∧ (∃ y, C.rel x s.val y) ∧
+      ∃ cell k', s.next[ℓ]? = some cell ∧ C.KeyRel k' x ∧
+        (k', s.val) ∈ cell.cache := by
   obtain ⟨cell, hcell, heqr, hfam, hkd, htyped⟩ := hv
-  by_cases hmem : ∃ b, (V₀.nat n, b) ∈ cell.cache
+  by_cases hmem : ∃ k b, (k, b) ∈ cell.cache ∧ C.KeyRel k x
   · -- hit: stable, effect-free, typed
-    obtain ⟨b, hb⟩ := hmem
-    have htyp : ∃ y, rel n b y := by
-      obtain ⟨n', y, hkey, hrel⟩ := htyped _ hb
-      obtain rfl : n = n' := by cases hkey; rfl
-      exact ⟨y, hrel⟩
-    exact ⟨2, ⟨h, le_refl h, b⟩, memoizer_hit hcell heqr.symm hkd hb,
-      ⟨cell, hcell, heqr, hfam, hkd, htyped⟩, htyp, cell, hcell, hb⟩
-  · -- miss: run the family, commit, return
-    have hno : ∀ p ∈ cell.cache, p.1 ≠ V₀.nat n := by
-      intro p hp hkey
-      refine hmem ⟨p.2, ?_⟩
-      rw [← hkey]
-      simpa using hp
+    obtain ⟨k, b, hkb, hKk⟩ := hmem
+    have hv : C.ValidAt ℓ h := ⟨cell, hcell, heqr, hfam, hkd, htyped⟩
+    obtain ⟨hrun, htyp⟩ := hit hv hcell hKa hKk hkb
+    exact ⟨2, ⟨h, le_refl h, b⟩, hrun, hv, htyp, cell, k, hcell, hKk, hkb⟩
+  · -- miss: run the family, commit at the queried key code, return
+    have hno : ∀ p ∈ cell.cache, C.eqb a p.1 = false := by
+      intro p hp
+      cases heq : C.eqb a p.1
+      · rfl
+      · exfalso
+        obtain ⟨x', y', hKp, -⟩ := htyped p hp
+        have hx : x = x' := (C.sound hKa hKp).mp heq
+        exact hmem ⟨p.1, p.2, by simpa using hp, hx ▸ hKp⟩
+    have hno' : ∀ p ∈ cell.cache, isTrue₀ (V₀.bool (C.eqb a p.1)) = false := by
+      intro p hp
+      rw [hno p hp, isTrue₀_bool]
     obtain ⟨fuel_f, s_f, hrun_f, y, hrel⟩ :=
-      hf h ⟨cell, hcell, heqr, hfam, hkd, htyped⟩ n
-    have hrun_f' : run isTrue₀ (fuel_f + 1) (f (V₀.nat n)) h = some s_f :=
+      hf h ⟨cell, hcell, heqr, hfam, hkd, htyped⟩ a x hKa
+    have hrun_f' : run isTrue₀ (fuel_f + 1) (C.fam a) h = some s_f :=
       run_fuel_mono (by omega) hrun_f
-    -- the family never touches cell `ℓ`, so the commit lands on `cell`
     have hcell_f : s_f.next[ℓ]? = some cell :=
       (hframe _ _ _ _ hrun_f).trans hcell
-    have hcell' : (s_f.next.commit ℓ (V₀.nat n) s_f.val)[ℓ]? =
-        some ⟨cell.eqr, cell.fam, (V₀.nat n, s_f.val) :: cell.cache⟩ := by
+    have hcell' : (s_f.next.commit ℓ a s_f.val)[ℓ]? =
+        some ⟨cell.eqr, cell.fam, (a, s_f.val) :: cell.cache⟩ := by
       rw [Heap.commit, Heap.getElem?_updateCell_self, hcell_f]
       rfl
-    have hv' : ValidAt rel f ℓ (s_f.next.commit ℓ (V₀.nat n) s_f.val) := by
+    have hv' : C.ValidAt ℓ (s_f.next.commit ℓ a s_f.val) := by
       refine ⟨_, hcell', heqr, hfam, ?_, ?_⟩
-      · exact List.pairwise_cons.mpr ⟨fun q hq => (hno q hq).symm, hkd⟩
+      · exact List.pairwise_cons.mpr ⟨fun q hq => hno q hq, hkd⟩
       · intro p hp
         rcases List.mem_cons.mp hp with rfl | hp
-        · exact ⟨n, y, rfl, hrel⟩
+        · exact ⟨x, y, hKa, hrel⟩
         · exact htyped p hp
-    -- assemble the run at fuel `fuel_f + 1 + 1`
-    have hcommit : commitPT ℓ (V₀.nat n) s_f.val s_f.next =
-        some ⟨s_f.next.commit ℓ (V₀.nat n) s_f.val,
-          Heap.le_commit s_f.next ℓ (V₀.nat n) s_f.val, s_f.val⟩ := rfl
-    have hinner := PT.bind_some (f := commitPT ℓ (V₀.nat n)) hrun_f' hcommit
+    have hcommit : commitPT ℓ a s_f.val s_f.next =
+        some ⟨s_f.next.commit ℓ a s_f.val,
+          Heap.le_commit s_f.next ℓ a s_f.val, s_f.val⟩ := rfl
+    have hinner := PT.bind_some (f := commitPT ℓ a) hrun_f' hcommit
     have hret : run isTrue₀ (fuel_f + 1) (F.ret s_f.val)
-        (s_f.next.commit ℓ (V₀.nat n) s_f.val) =
-        some ⟨s_f.next.commit ℓ (V₀.nat n) s_f.val,
-          le_refl _, s_f.val⟩ := by
+        (s_f.next.commit ℓ a s_f.val) =
+        some ⟨s_f.next.commit ℓ a s_f.val, le_refl _, s_f.val⟩ := by
       rw [run_ret]
       rfl
     have houter := PT.bind_some
       (f := fun b => run isTrue₀ (fuel_f + 1) (F.ret b)) hinner hret
     refine ⟨fuel_f + 1 + 1,
-      ⟨s_f.next.commit ℓ (V₀.nat n) s_f.val,
-        le_trans s_f.le (Heap.le_commit s_f.next ℓ (V₀.nat n) s_f.val), s_f.val⟩,
-      ?_, hv', ⟨y, hrel⟩, _, hcell', List.mem_cons_self ..⟩
+      ⟨s_f.next.commit ℓ a s_f.val,
+        le_trans s_f.le (Heap.le_commit s_f.next ℓ a s_f.val), s_f.val⟩,
+      ?_, hv', ⟨y, hrel⟩, _, a, hcell', hKa, List.mem_cons_self ..⟩
     simp only [memoizer, run_memo, hcell]
     rw [heqr, hfam, show cell.cache = cell.cache ++ [] from (List.append_nil _).symm,
-      scan_skip hno, scan_nil, PT.pure_bind]
+      scan_ret_skip hno', scan_nil, PT.pure_bind]
     exact houter
 
-/-- **Stability across extensions**: once `(nat n ↦ b)` is committed, every
-later query at `n` from *any* valid extension returns `b`, effect-free. With
-functionality of `rel`, the realized value is also unique: the generic
-section's value at `n` is settled at commit time. -/
-theorem ValidAt.stable {rel : (n : ℕ) → V₀ → B n → Prop} {f : V₀ → F V₀}
-    {ℓ : Loc} {h h' : Heap V₀} {n : ℕ} {b : V₀} {cell : Cell V₀}
-    (hv' : ValidAt rel f ℓ h') (hle : h ≤ h')
-    (hcell : h[ℓ]? = some cell) (hmem : (V₀.nat n, b) ∈ cell.cache) :
-    run isTrue₀ 2 (memoizer ℓ (V₀.nat n)) h' = some ⟨h', le_refl h', b⟩ ∧
-      ∃ y, rel n b y := by
-  obtain ⟨cell', hcell', hLe⟩ := hle ℓ cell hcell
-  obtain ⟨p, hp⟩ := hLe.2.2
-  refine hv'.hit hcell' ?_
-  rw [hp]
-  exact List.mem_append_right p hmem
-
-/-- **Staging**: allocating a fresh `AC_dec` cell yields a valid condition
-with an empty cache — the entry point for `ValidAt.total`/`ValidAt.hit`. -/
-theorem validAt_alloc (rel : (n : ℕ) → V₀ → B n → Prop) (f : V₀ → F V₀)
-    (h : Heap V₀) : ValidAt rel f h.length (h.alloc eqCode f) := by
-  refine ⟨⟨eqCode, f, []⟩, ?_, rfl, rfl, List.Pairwise.nil,
+/-- **Staging**: allocating the cell yields a valid condition with an empty
+cache — the entry point for `total`/`hit`. -/
+theorem validAt_alloc (C : AcCell A B) (h : Heap V₀) :
+    C.ValidAt h.length (h.alloc C.eqr C.fam) := by
+  refine ⟨⟨C.eqr, C.fam, []⟩, ?_, rfl, rfl, List.Pairwise.nil,
     fun p hp => absurd hp (List.not_mem_nil)⟩
   rw [Heap.alloc]
   exact List.getElem?_concat_length ..
+
+/-- The generic-section clause (`THEORY.md` §4) for the memoizer at `ℓ`:
+totality + typing + caching at every valid condition, and stability of
+committed entries across valid extensions. -/
+def GenericSection (C : AcCell A B) (ℓ : Loc) : Prop :=
+  (∀ h, C.ValidAt ℓ h → ∀ (a : V₀) (x : A), C.KeyRel a x →
+    ∃ (fuel : ℕ) (s : Step V₀ h),
+      run isTrue₀ fuel (memoizer ℓ a) h = some s ∧
+      C.ValidAt ℓ s.next ∧ (∃ y, C.rel x s.val y) ∧
+      ∃ cell k', s.next[ℓ]? = some cell ∧ C.KeyRel k' x ∧
+        (k', s.val) ∈ cell.cache) ∧
+  (∀ (h h' : Heap V₀) (cell : Cell V₀) (a k b : V₀) (x : A),
+    C.ValidAt ℓ h' → h ≤ h' → h[ℓ]? = some cell →
+    C.KeyRel a x → C.KeyRel k x → (k, b) ∈ cell.cache →
+    run isTrue₀ 2 (memoizer ℓ a) h' = some ⟨h', le_refl h', b⟩)
+
+/-- **`AC_dec` is realized**: from any heap, the `AC_dec` program succeeds in
+one step, returns the fresh cell's location, and establishes a valid
+condition over which the staged memoizer is a generic section of `B`. The
+premises are the family's `Π x. ‖B x‖`-clause and the frame property at the
+fresh cell (`THEORY.md` §7). -/
+theorem acDec_realized (C : AcCell A B) (h : Heap V₀)
+    (hf : ∀ h₁, C.ValidAt h.length h₁ → ∀ (a : V₀) (x : A), C.KeyRel a x →
+      ∃ (fuel : ℕ) (s : Step V₀ h₁),
+        run isTrue₀ fuel (C.fam a) h₁ = some s ∧ ∃ y, C.rel x s.val y)
+    (hframe : ∀ (a : V₀) (fuel : ℕ) (h₁ : Heap V₀) (s : Step V₀ h₁),
+      run isTrue₀ fuel (C.fam a) h₁ = some s →
+        s.next[h.length]? = h₁[h.length]?) :
+    ∃ s : Step V₀ h,
+      run isTrue₀ 2 C.acDecProg h = some s ∧
+      s.val = V₀.nat h.length ∧
+      C.ValidAt h.length s.next ∧
+      C.GenericSection h.length := by
+  have halloc : allocPT C.eqr C.fam h =
+      some ⟨h.alloc C.eqr C.fam, Heap.le_alloc h C.eqr C.fam, h.length⟩ := rfl
+  have hret : run isTrue₀ 1 (F.ret (V₀.nat h.length)) (h.alloc C.eqr C.fam) =
+      some ⟨h.alloc C.eqr C.fam, le_refl _, V₀.nat h.length⟩ := by
+    rw [run_ret]
+    rfl
+  have hrun := PT.bind_some
+    (f := fun ℓ => run isTrue₀ 1 (F.ret (V₀.nat ℓ))) halloc hret
+  refine ⟨⟨h.alloc C.eqr C.fam, Heap.le_alloc h C.eqr C.fam, V₀.nat h.length⟩,
+    ?_, rfl, validAt_alloc C h,
+    fun h₁ hv a x hKa => total hf hframe hv hKa,
+    fun h₁ h₂ cell a k b x hv' hle hc hKa hKk hm =>
+      (stable hv' hle hc hKa hKk hm).1⟩
+  simp only [acDecProg, run_alloc]
+  exact hrun
+
+end AcCell
+
+/-! ### The increment-1 instance: `A = ℕ` with code equality -/
+
+/-- The `ℕ`-indexed instance: numeral keys, code equality as the eq-code. -/
+def natCell {B' : ℕ → Type v} (rel : (n : ℕ) → V₀ → B' n → Prop) (f : V₀ → F V₀) :
+    AcCell ℕ B' where
+  KeyRel k n := k = V₀.nat n
+  eqb a k := decide (a = k)
+  rel := rel
+  fam := f
+  sound := by
+    rintro k x k' x' rfl rfl
+    simp
+
+/-! ### Non-vacuity: a concrete instance with all premises discharged
+
+If the premises of `acDec_realized` were not simultaneously satisfiable the
+capstone would be vacuous. Here is a concrete `AcCell` — index `ℕ`, family
+constantly `Bool`, the constant-`true` choice — for which both premises hold
+unconditionally, yielding a **hypothesis-free** realization of `AC_dec`. -/
+
+/-- A concrete cell: numeral keys, `B n = Bool`, value codes are booleans, the
+family is constantly `true`. -/
+def boolCell : AcCell ℕ (fun _ => Bool) :=
+  natCell (fun _ v b => v = V₀.bool b) (fun _ => F.ret (V₀.bool true))
+
+/-- **The capstone is not vacuous**: for the concrete `boolCell`, `AC_dec` is
+realized with no remaining hypotheses. -/
+theorem boolCell_acDec (h : Heap V₀) :
+    ∃ s : Step V₀ h,
+      run isTrue₀ 2 boolCell.acDecProg h = some s ∧
+      s.val = V₀.nat h.length ∧
+      boolCell.ValidAt h.length s.next ∧
+      boolCell.GenericSection h.length := by
+  apply boolCell.acDec_realized
+  · -- family premise: the constant-`true` family terminates and is typed
+    intro h₁ _ a n _
+    refine ⟨1, ⟨h₁, le_refl h₁, V₀.bool true⟩, ?_, true, rfl⟩
+    change run isTrue₀ 1 (F.ret (V₀.bool true)) h₁ = _
+    rw [run_ret]
+    rfl
+  · -- frame premise: a pure family leaves every cell untouched
+    intro a fuel h₁ s hs
+    have hs' : run isTrue₀ fuel (F.ret (V₀.bool true)) h₁ = some s := hs
+    obtain ⟨hnext, -⟩ := run_ret_inv hs'
+    rw [hnext]
 
 end LeanStatefulAoc

@@ -130,18 +130,32 @@ execution states — and it realizes `φ` (the genericity). Meanwhile `¬¬φ` i
 realized everywhere. The two horns are value-blindness, absorbed structurally:
 programs cannot put values in; the semantics can imagine them in.
 
-## The Diaconescu firewall (by construction)
+## The Diaconescu firewall
 
-The heap exposes exactly one operation: eq-guarded lookup-or-commit, with the
-committed value computed by the cell's own family realizer. Clients cannot write
-chosen values, enumerate keys, observe cache size, or compare cell identities —
-not because a lemma forbids it, but because the realizer syntax has no
-constructor that does it. What an earlier plan called "promote the firewall to a
-stated parametricity lemma" is now true by construction of the operational
-semantics. What is *not* yet closed is the internal `∀A` version — that no
-internal decidable-equality object (e.g. `2/~ₚ`, with equality only locally
-decided) smuggles in new observational power. That closure is research-tier; the
-kernel theorems do not assume it.
+Two layers, one done and one open.
+
+**By construction.** The heap exposes exactly one operation: eq-guarded
+lookup-or-commit, with the committed value computed by the cell's own family
+realizer. Clients cannot write chosen values, enumerate keys, observe cache
+size, or compare cell identities — not because a lemma forbids it, but because
+the realizer syntax `F` has no constructor that does it. The earlier plan to
+"promote the firewall to a parametricity lemma" is now true by construction.
+
+**The `2/~ₚ` obstruction, formalized** (`Firewall.lean`, K3 first result). For
+`Glue P` = two points of `Bool` glued iff `P`, decidable equality is exactly
+`P`: `⟦true⟧ = ⟦false⟧ ↔ P`. The theorem `acCell_glue_firewall` shows that any
+`AcCell (Glue P) B` plus codes for the two points entails `P ∨ ¬P` — *and the
+proof uses no `Classical.choice`* (`#print axioms` = `propext, Quot.sound`), so
+the excluded middle provably comes from the cell, not from Lean. You cannot even
+*build* the data to run the memoizer over `2/~ₚ` without already deciding `P`;
+`AC_dec` consumes the EM it is given and manufactures none.
+
+**Still open.** That covers the *global, pure* eq-code. The genuine frontier is
+an *effectful, only-locally-decidable* eq realizer — one that refines the
+condition to decide equality on a cover (a section of `(=) + ¬(=)` is a
+partition of a cover) without ever deciding `P` globally. Whether the memoizer
+works with such local eq, and whether it still leaks nothing, is the heart of
+the internal `∀A` closure and is unproven (`THEORY.md` §8).
 
 ## What remains
 
@@ -158,14 +172,20 @@ In order:
    That algebra is the truth-value algebra of the presheaf topos over the
    condition poset; the identification, and the sheaf topos for the decision
    coverage, remain on paper (K3).
-2. **K2 — `AC_dec` for data-valued `B`.** 🔶 **Increment 1 done**
-   (`Choice.lean`, index `ℕ`, pure code-equality eq): the generic-section
-   clause for the memoizer over `ValidAt` conditions — totality + typing
-   (`ValidAt.total`, the miss path composing with the family's own
-   termination), stability/single-valuedness (`ValidAt.hit`,
-   `ValidAt.stable`), staging (`validAt_alloc`). Remaining: index types with
-   *realized* decidable equality beyond `ℕ` (increment 2); the frame premise
-   stays an assumption in the shallow embedding (`THEORY.md` §7).
+2. **K2 — `AC_dec` for data-valued `B`.** ✅ **Done** (`Choice.lean`), capstone
+   `AcCell.acDec_realized` (only the three standard axioms, no `sorry`): for an
+   *abstract* index `A` with **realized decidable equality** — the project's
+   actual delta over the `ℕ`-only Berardi–Bezem–Coquand functional — the
+   `AC_dec` program (allocate the cell, return its location) succeeds in one
+   step and stages a `memoizer` that is a `GenericSection` of `B`: totality +
+   typing (`AcCell.total`), and stability across valid extensions
+   (`AcCell.hit`, `AcCell.stable`), which with functional `rel` is semantic
+   single-valuedness. Distinct codes realizing the same index collapse to one
+   cache slot — "decidable equality is persistence of the key-partition", made
+   literal. Honest scope (`THEORY.md` §7): the eq-code is modeled as pure +
+   total with a meta-level soundness law (a *given* decidable equality, not yet
+   an internal/local one), and the frame premise — the family never touches its
+   own cell — stays an assumption in the shallow embedding.
 3. **K3 — research tier.** Function-valued `B` (honest higher-order store:
    step-indexing / recursive worlds); the internal `∀A` closure with
    condition-*local* equality classes (a section of `(=) + ¬(=)` is a partition
@@ -188,8 +208,13 @@ In order:
    conditions.
 3. `Realizes` — the ⊩-kernel (semantic conditions, simulation `h ~ c`,
    clauses); needed from K2 on.
-4. `Choice` — K2: the memoizer; `AC_dec` via totality + single-valuedness.
-5. `Soundness` — K3, later.
+4. `Choice` — **done**: `AcCell` (one `AC_dec` application's data: realized
+   deceq + data family), the generic-section clause for the memoizer
+   (`AcCell.total`/`hit`/`stable`), and the capstone `AcCell.acDec_realized`.
+5. `Firewall` — **done**: `Glue P` (= `2/~ₚ`), `DecidableEq (Glue P) ↔ Decidable P`,
+   and `acCell_glue_firewall` (building an `AcCell` over `Glue P` entails `P ∨ ¬P`,
+   `Classical.choice`-free). The global/pure-eq firewall.
+6. `Soundness` / local-eq firewall — K3, later.
 
 ## Lineage
 
