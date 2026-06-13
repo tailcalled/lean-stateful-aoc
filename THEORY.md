@@ -521,8 +521,40 @@ same coincidence pattern (`rep (nat 0) = rep (nat 1) ↔ rep' (nat 0) = rep' (na
 1)`), the attack gives the *same* observable output. So it cannot see the
 specific representative codes — only the one coincidence bit the family itself
 exposes, plus the eq-verdict. This is value-blindness for the comparison program,
-**fully general in both eq and family**. The remaining gap is only "all
-programs", not "all eqs / all families".
+**fully general in both eq and family**.
+
+### General value-blindness, by a logical relation (2026-06-13, `ValueBlind.lean`)
+
+The "all programs" gap is now closed via a binary **logical relation**. `RelF R`
+relates two programs that are the same up to an `R`-relabeling of the codes they
+pass around — the `memo`/`alloc` continuations must send `R`-related inputs to
+`RelF`-related outputs, i.e. *never branch on a code's identity except through
+operations `R` respects*. `RelHeap R` relates heaps cell-by-cell (related
+eq-realizers, families, caches). The **fundamental lemma `rel_run`**: `RelF`-related
+programs on `RelHeap`-related heaps produce `R`-related results — proven by
+fuel-induction through the `memo`/`scan`/`commit`/`alloc` cases, with the eq
+verdicts agreeing *for free* (the eq-realizers are themselves `RelF`-related, so
+running them on `R`-related keys gives `R`-related verdict codes, and `RTrue R`
+decodes them equally — no separate equality hypothesis). The payoff
+`value_blind_isTrue`: two `RelF`-related runs decode to the **same boolean**.
+
+Taking `e' = e`, `R` = (the graph of) a code-bijection fixing booleans, and `h'`
+an `R`-relabeling of `h`: a program that is `RelF R`-related to itself has a
+boolean output **invariant under relabeling the stored representative codes** —
+the general value-blindness, all programs. `#print axioms` = `propext,
+Quot.sound`; no `sorry`.
+
+*Honest scope.* `RelF R`-self-relatedness is exactly *code-opacity*: the program
+inspects codes only through `R`-respecting operations (equality under a bijection
+is one — so the Diaconescu comparison `decide (r₀ = r₁)` qualifies). A program
+that branches on a *specific constant* code (`if r = c₇ then …`) is **not**
+`RelF`-self-related, and correctly so — such a program *can* leak, but it is not
+an honest realizer (realizers are built parametrically, without magic
+constants). So the theorem covers precisely the honest-realizer fragment — the
+README's "∀A value-blindness / firewall closure". What is *not* formalized is a
+`RelF` derivation for `diaProg` specifically (that is handled independently and
+concretely by `dia_value_blind`); `rel_run`/`value_blind_isTrue` stand as the
+general statement for the whole code-opaque fragment.
 
 *What is still open:* this neutralizes the *specific* attack (one program, the
 canonical comparison). Full **value-blindness** — that *every* program over the

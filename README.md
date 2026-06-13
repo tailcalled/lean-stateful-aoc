@@ -172,9 +172,15 @@ direction is the family's distinct representatives. Generally (`dia_eval`), for
 `isTrue₀ (eq verdict) || (family collapses the two points)` — only functions of
 the given data — and (`dia_value_blind`) its output is invariant under any change
 of representatives preserving their coincidence, so it cannot see the specific
-codes. What is *still* unproven is full **value-blindness** — that *every*
-program, not just this attack, reveals no more than `(eq, family)` (the general
-parametricity over cover branches, for a code-opaque program fragment).
+codes. General **value-blindness** is then proven for *all* code-opaque programs
+(`ValueBlind.lean`) by a binary logical relation `RelF`: the fundamental lemma
+`rel_run` shows `RelF`-related programs on related heaps give related results, and
+`value_blind_isTrue` that their boolean output is identical — so a program that
+inspects codes only through equality-respecting operations (an honest realizer,
+built without magic constants) cannot see the stored representatives beyond what
+the eq-realizer and family expose. Programs branching on a *specific constant*
+code are excluded — exactly the dishonest ones. This is the README's "∀A
+value-blindness / firewall closure", `Classical.choice`-free.
 
 ## What remains
 
@@ -239,7 +245,10 @@ In order:
    the defining adjunction `p ⊓ q ≤ r ↔ p ≤ q ⇨ r`), with `kEM_fails`
    (`φ ⊔ ¬φ ≠ ⊤`) — a Heyting algebra of truth values that is provably not
    Boolean. The presheaf, propositional ⊩-layer.
-7. `Soundness` / sheaf ⊩-layer / local-eq firewall — K3, later.
+7. `ValueBlind` — **done**: the `RelF`/`RelHeap` logical relation, the fundamental
+   lemma `rel_run`, and `value_blind_isTrue` — general value-blindness for the
+   code-opaque (honest-realizer) program fragment.
+8. `Soundness` — full type-theoretic soundness; later.
 
 ## Lineage
 
