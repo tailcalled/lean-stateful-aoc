@@ -320,4 +320,72 @@ theorem boolCell_acDec (h : Heap V₀) :
     obtain ⟨hnext, -⟩ := run_ret_inv hs'
     rw [hnext]
 
+/-! ### A pair cell: decidable equality coarser than code identity
+
+`natCell` keys each index by a *single* code (`eqb` is code equality), so the
+decidable-equality machinery never actually collapses two distinct codes. The
+*pair cell* is the first instance where it does: index `n` is realized by **both**
+`2n` and `2n+1`, and `eqb` decides "same pair" (`⌊·/2⌋` equal), not code identity.
+So `2n` and `2n+1` are distinct codes realizing the *same* index, and the memoizer
+routes them together — "decidable equality is persistence of the key-partition",
+exercised non-trivially. This is the structural core of the decidable-equality
+*index* generalization (the eq is genuinely coarser than `=` on codes).
+
+(This is the *projective* shape — both realizers always present, so a normal form
+is computable. The genuinely non-projective version — `tailcalled`'s twisted-`ℕ`,
+where which of `{2n, 2n+1}` is a valid realizer is fixed by diagonalizing against
+all machines so no normal form exists — needs a computability layer this
+development does not have; see the lineage note in the README.) -/
+
+/-- "Same pair": equality of `⌊·/2⌋` on numerals, coarser than code identity. -/
+def pairEqb : V₀ → V₀ → Bool
+  | .nat i, .nat j => decide (i / 2 = j / 2)
+  | _, _ => false
+
+/-- The pair cell: index `n` realized by `2n` and `2n+1`, equality = "same pair". -/
+def pairCell {B' : ℕ → Type v} (rel : (n : ℕ) → V₀ → B' n → Prop) (f : V₀ → F V₀) :
+    AcCell ℕ B' where
+  KeyRel k n := k = V₀.nat (2 * n) ∨ k = V₀.nat (2 * n + 1)
+  eqb := pairEqb
+  rel := rel
+  fam := f
+  sound := by
+    intro k x k' x' hk hk'
+    rcases hk with rfl | rfl <;> rcases hk' with rfl | rfl <;>
+      simp only [pairEqb, decide_eq_true_eq] <;> omega
+
+/-- **The two codes for one index route together.** An entry stored under the code
+`2n` is returned when the memoizer is queried with the *distinct* code `2n+1` —
+the decidable equality collapses the two realizers of index `n`. This is the
+behaviour `natCell` (single code per index) cannot exhibit. -/
+theorem pairCell_routes_together {B' : ℕ → Type v} (rel : (n : ℕ) → V₀ → B' n → Prop)
+    (f : V₀ → F V₀) {ℓ : Loc} {h : Heap V₀} {n : ℕ} {b : V₀} {cell : Cell V₀}
+    (hv : (pairCell rel f).ValidAt ℓ h) (hcell : h[ℓ]? = some cell)
+    (hmem : (V₀.nat (2 * n), b) ∈ cell.cache) :
+    run isTrue₀ 2 (memoizer ℓ (V₀.nat (2 * n + 1))) h = some ⟨h, le_refl h, b⟩ :=
+  (AcCell.hit hv hcell (Or.inr rfl) (Or.inl rfl) hmem).1
+
+/-- A concrete pair cell, and `AC_dec` realized for it with no remaining
+hypotheses — so the decidable-equality-coarser-than-code-identity case is also
+non-vacuous. -/
+def pairBoolCell : AcCell ℕ (fun _ => Bool) :=
+  pairCell (fun _ v b => v = V₀.bool b) (fun _ => F.ret (V₀.bool true))
+
+theorem pairBoolCell_acDec (h : Heap V₀) :
+    ∃ s : Step V₀ h,
+      run isTrue₀ 2 pairBoolCell.acDecProg h = some s ∧
+      s.val = V₀.nat h.length ∧
+      pairBoolCell.ValidAt h.length s.next ∧
+      pairBoolCell.GenericSection h.length := by
+  apply pairBoolCell.acDec_realized
+  · intro h₁ _ a n _
+    refine ⟨1, ⟨h₁, le_refl h₁, V₀.bool true⟩, ?_, true, rfl⟩
+    change run isTrue₀ 1 (F.ret (V₀.bool true)) h₁ = _
+    rw [run_ret]
+    rfl
+  · intro a fuel h₁ s hs
+    have hs' : run isTrue₀ fuel (F.ret (V₀.bool true)) h₁ = some s := hs
+    obtain ⟨hnext, -⟩ := run_ret_inv hs'
+    rw [hnext]
+
 end LeanStatefulAoc

@@ -238,6 +238,10 @@ In order:
 4. `Choice` — **done**: `AcCell` (one `AC_dec` application's data: realized
    deceq + data family), the generic-section clause for the memoizer
    (`AcCell.total`/`hit`/`stable`), and the capstone `AcCell.acDec_realized`.
+   Instances: `boolCell` (`ℕ`, code equality) and `pairCell` (index `n` realized
+   by *both* `2n` and `2n+1`, `eqb` = "same pair") — the latter exercising the
+   decidable-equality-*index* generalization non-trivially (eq coarser than code
+   identity; `pairCell_routes_together` shows the two codes collapse).
 5. `Firewall` — **done**: `Glue P` (= `2/~ₚ`), `DecidableEq (Glue P) ↔ Decidable P`,
    and `acCell_glue_firewall` (building an `AcCell` over `Glue P` entails `P ∨ ¬P`,
    `Classical.choice`-free). The global/pure-eq firewall.
