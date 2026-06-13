@@ -205,25 +205,53 @@ memoizer's only contribution). On the `o = false` branch the keys get separate
 entries `nat 0`, `nat 1` — distinct representatives, comparison `false`. Either
 way the result is `o`. -/
 
-/-- The Diaconescu program over the glued type: allocate the cell (eq returns the
-branch verdict `o`, family = identity representative), query both point-codes
-`nat 0`, `nat 1`, compare the representatives. -/
-def diaProg (o : Bool) : F V₀ :=
-  .alloc (fun _ _ => .ret (.bool o)) (fun a => .ret a)
+/-- The Diaconescu program over the glued type: allocate the cell (eq is the pure
+realizer `geq`, family returns each key's representative via `rep`), query both
+point-codes `nat 0`, `nat 1`, compare the two representatives. -/
+def diaProg (geq : V₀ → V₀ → V₀) (rep : V₀ → V₀) : F V₀ :=
+  .alloc (fun a k => .ret (geq a k)) (fun a => .ret (rep a))
     (fun ℓ => .memo ℓ (.nat 0) (fun r₀ =>
       .memo ℓ (.nat 1) (fun r₁ => .ret (.bool (decide (r₀ = r₁))))))
 
-/-- **The Diaconescu comparison recovers exactly the verdict.** Running the
-attack from the empty heap yields `bool o` — the eq-verdict it was handed, and
-nothing more. (Regime (b): the premise is supplied per branch, yet `AC_dec`
-leaks no excluded middle beyond it.) -/
-theorem dia_recovers_verdict (o : Bool) :
-    (run isTrue₀ 5 (diaProg o) []).map Step.val = some (V₀.bool o) := by
-  cases o <;>
+/-- **The Diaconescu comparison, exactly — for any eq and any family.** The
+attack evaluates to `(eq's verdict on the two points) ∨ (the family assigns them
+coinciding representatives)`. So the comparison reveals *only* two functions of
+the given data — the eq-realizer's own answer, and a single bit of the family —
+and nothing independent of `(eq, family)`. This is value-blindness *for the
+attack program*, fully general in both the eq-realizer and the family. The
+`verdict = true` half is the memoizer's single-valuedness (eq-routing returns the
+same representative); the `false` half exposes the family's `rep (nat 0) =? rep
+(nat 1)`. -/
+theorem dia_eval (geq : V₀ → V₀ → V₀) (rep : V₀ → V₀) :
+    (run isTrue₀ 5 (diaProg geq rep) []).map Step.val
+      = some (V₀.bool (isTrue₀ (geq (.nat 1) (.nat 0))
+                || decide (rep (V₀.nat 0) = rep (V₀.nat 1)))) := by
+  rcases hb : isTrue₀ (geq (V₀.nat 1) (V₀.nat 0)) with _ | _ <;>
     simp [diaProg, show (5 : ℕ) = 4 + 1 from rfl, show (4 : ℕ) = 3 + 1 from rfl,
       show (3 : ℕ) = 2 + 1 from rfl, show (2 : ℕ) = 1 + 1 from rfl,
       run_alloc, run_memo, run_ret, scan_nil, scan_cons,
       allocPT, commitPT, PT.bind, PT.pure, Heap.alloc, Heap.commit,
-      Heap.updateCell, isTrue₀]
+      Heap.updateCell, hb]
+
+/-- **The Diaconescu comparison recovers exactly the verdict** when the eq
+returns the branch's verdict `o` and the family separates the two points (the
+genuine Diaconescu setup). So `AC_dec` with the premise supplied per branch leaks
+no excluded middle beyond the eq it was handed. -/
+theorem dia_recovers_verdict (o : Bool) :
+    (run isTrue₀ 5 (diaProg (fun _ _ => .bool o) (fun a => a)) []).map Step.val
+      = some (V₀.bool o) := by
+  rw [dia_eval]
+  cases o <;> simp [isTrue₀]
+
+/-- **Value-blindness of the attack.** The attack's observable output is invariant
+under *any* change of representatives that preserves their coincidence pattern.
+So it cannot see the specific representative codes — only whether the family
+collapsed the two points, and the eq-verdict. The memoizer leaks nothing about
+the *values* it stores beyond the one coincidence bit the family itself exposes. -/
+theorem dia_value_blind (geq : V₀ → V₀ → V₀) (rep rep' : V₀ → V₀)
+    (h : (rep (V₀.nat 0) = rep (V₀.nat 1)) ↔ (rep' (V₀.nat 0) = rep' (V₀.nat 1))) :
+    (run isTrue₀ 5 (diaProg geq rep) []).map Step.val
+      = (run isTrue₀ 5 (diaProg geq rep') []).map Step.val := by
+  rw [dia_eval, dia_eval, decide_eq_decide.mpr h]
 
 end LeanStatefulAoc

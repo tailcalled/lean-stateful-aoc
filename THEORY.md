@@ -508,6 +508,22 @@ is the memoizer's single-valuedness (the `o = true` routing), proven in K2; the
 `o = false` side is the family's representative-distinctness, not the memoizer's
 concern. `#print axioms` = `propext, Quot.sound`.
 
+*General form* (`dia_eval`): for an **arbitrary pure eq `geq`** *and* an
+**arbitrary family `rep`**, the attack evaluates to
+`bool (isTrue₀ (geq (nat 1) (nat 0)) || decide (rep (nat 0) = rep (nat 1)))`. So
+the comparison reveals *only* two functions of the given data — the eq-realizer's
+own answer, and whether the family assigned the two points coinciding
+representatives — nothing independent of `(eq, family)`. `dia_recovers_verdict`
+is the corollary (eq returns the verdict, separating family).
+
+*Value-blindness, explicitly* (`dia_value_blind`): for any two families with the
+same coincidence pattern (`rep (nat 0) = rep (nat 1) ↔ rep' (nat 0) = rep' (nat
+1)`), the attack gives the *same* observable output. So it cannot see the
+specific representative codes — only the one coincidence bit the family itself
+exposes, plus the eq-verdict. This is value-blindness for the comparison program,
+**fully general in both eq and family**. The remaining gap is only "all
+programs", not "all eqs / all families".
+
 *What is still open:* this neutralizes the *specific* attack (one program, the
 canonical comparison). Full **value-blindness** — that *every* program over the
 cell reveals no more than the eq-verdict — is the general parametricity statement

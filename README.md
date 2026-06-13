@@ -167,10 +167,14 @@ generic — unlike K1's asymmetric `φ`), the canonical Diaconescu construction 
 allocate the glued cell, query both points through the memoizer, compare the
 representatives — evaluates to *exactly* the supplied verdict and nothing more.
 The `equal` direction is the memoizer's single-valuedness (K2); the `unequal`
-direction is the family's distinct representatives. So the actual EM-extraction
-attack recovers only the eq it was handed. What is *still* unproven is full
-**value-blindness** — that *every* program, not just this attack, reveals no more
-than the eq-verdict (the general parametricity over cover branches).
+direction is the family's distinct representatives. Generally (`dia_eval`), for
+*any* pure eq and *any* family the attack evaluates to
+`isTrue₀ (eq verdict) || (family collapses the two points)` — only functions of
+the given data — and (`dia_value_blind`) its output is invariant under any change
+of representatives preserving their coincidence, so it cannot see the specific
+codes. What is *still* unproven is full **value-blindness** — that *every*
+program, not just this attack, reveals no more than `(eq, family)` (the general
+parametricity over cover branches, for a code-opaque program fragment).
 
 ## What remains
 
