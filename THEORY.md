@@ -200,6 +200,17 @@ Supersedes parts of the current file:
   Scope note: "EM fails in *the* model validating `AC_dec`" still requires
   K2+K3 — K1's topos-facing claim is about the presheaf algebra over this
   condition poset.
+- **Heyting algebra (DONE 2026-06-13, `Heyting.lean`).** `KProp` equipped with
+  `kAnd`/`kOr`/`kImp` (+ `kNot`/`kTop`/`kBot`); the Heyting-algebra laws proven
+  directly, including the defining adjunction `kAnd_le_iff_le_kImp`
+  (`p ⊓ q ≤ r ↔ p ≤ q ⇨ r`). `kEM_fails : kOr kPhi (kNot kPhi) ≠ kTop` — EM
+  fails *as an algebra law*, so this is a Heyting algebra that is provably not
+  Boolean. (Proven with a hand-rolled `≼` rather than Mathlib's `HeytingAlgebra`
+  typeclass — the bundled instance built but its `Max`/`Top`/`Compl`
+  projections did not register as notation instances; the laws-as-theorems form
+  is equivalent and self-contained.) Still on paper: the categorical
+  `KProp ≃ Psh(Cond)` identification, and the *sheaf* algebra for the decision
+  coverage (where the local-eq firewall lives).
 - **K2 increments 1 & 2: DONE 2026-06-13** (`Choice.lean`). Increment 1 was
   the `A = ℕ` / code-equality version; it has been *subsumed* by increment 2's
   abstract `AcCell A B` (the `ℕ` case is recovered as `natCell`). The capstone

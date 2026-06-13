@@ -171,12 +171,14 @@ In order:
    *Realizer level*: `em_not_realized` (no program decides `φ ∨ ¬φ` at the
    base condition) and `dne_not_realized`, via the memo-discipline lemma
    `protected_run` — the firewall as a proved invariant. *Algebra level*
-   (`kripke_not_boolean`): over the poset of **single-valued** conditions —
-   required, since the raw heap order is not persistent — the operational `φ`
-   is a monotone proposition with `¬φ = ⊥` (density at a fresh key) and
-   `φ ≠ ⊤`, so the Kripke algebra of monotone propositions is **non-Boolean**.
-   That algebra is the truth-value algebra of the presheaf topos over the
-   condition poset; the identification, and the sheaf topos for the decision
+   (`kripke_not_boolean`, and `Heyting.lean`): over the poset of
+   **single-valued** conditions — required, since the raw heap order is not
+   persistent — the monotone propositions `KProp` form a genuine **Heyting
+   algebra** (connectives + the defining adjunction `p ⊓ q ≤ r ↔ p ≤ q ⇨ r`,
+   all proven), in which `kEM_fails` gives `φ ⊔ ¬φ ≠ ⊤` — a Heyting algebra of
+   truth values that is **provably not Boolean**. It is the truth-value algebra
+   of the presheaf topos over the condition poset; the categorical
+   identification with `Psh(Cond)`, and the *sheaf* topos for the decision
    coverage, remain on paper (K3).
 2. **K2 — `AC_dec` for data-valued `B`.** ✅ **Done** (`Choice.lean`), capstone
    `AcCell.acDec_realized` (only the three standard axioms, no `sorry`): for an
@@ -220,7 +222,11 @@ In order:
 5. `Firewall` — **done**: `Glue P` (= `2/~ₚ`), `DecidableEq (Glue P) ↔ Decidable P`,
    and `acCell_glue_firewall` (building an `AcCell` over `Glue P` entails `P ∨ ¬P`,
    `Classical.choice`-free). The global/pure-eq firewall.
-6. `Soundness` / local-eq firewall — K3, later.
+6. `Heyting` — **done**: the Kripke–Heyting algebra on `KProp` (connectives +
+   the defining adjunction `p ⊓ q ≤ r ↔ p ≤ q ⇨ r`), with `kEM_fails`
+   (`φ ⊔ ¬φ ≠ ⊤`) — a Heyting algebra of truth values that is provably not
+   Boolean. The presheaf, propositional ⊩-layer.
+7. `Soundness` / sheaf ⊩-layer / local-eq firewall — K3, later.
 
 ## Lineage
 
