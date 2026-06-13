@@ -14,15 +14,20 @@ was hiding in the program.*
 
 This repository is a Lean 4 + Mathlib development of that model.
 
-> **Status.** Formalization started. The design was adversarially stress-tested
-> and revised (2026-06-12); **`THEORY.md` is the authoritative formalization
-> plan** — this README carries the conceptual story. Headlines of the revision:
-> the central viability question — *does forcing the generic collapse the logic
-> to classical?* — stays answered **no**, now with a direct, bar-free proof; the
-> formalization needs **no sheaf machinery** (the Beth coverage is absorbed into
-> the realizability clauses); the firewall holds **by construction** rather than
-> by a parametricity lemma; and the tractable/research boundary is *data-valued
-> vs function-valued `B`*. See [What remains](#what-remains).
+> **Status.** Core formalization complete (`sorry`-free, ~2400 lines). The
+> **headline** — *one* mutable-state realizability relation that validates
+> `AC_dec`'s conclusion **and** in which excluded middle fails — is the single
+> theorem `headline` in `Unified.lean`. *Honest scope:* it is a **minimal**
+> unified relation — realizer-irrelevant on the propositional fragment, with the
+> `choice` clause packaging the memoizer's generic section and `AC_dec`'s
+> premises built into the concrete cell rather than appearing as implication
+> antecedents. It establishes "one Kripke-realizability relation, both
+> properties," **not** full MLTT soundness — that, a compositional `‖·‖`/`Π`
+> clause, and the full implication remain future work. The design was
+> adversarially stress-tested and revised (2026-06-12); **`THEORY.md`** carries
+> the formalization plan. The central viability question — *does forcing the
+> generic collapse the logic to classical?* — is answered **no**, with a direct,
+> bar-free proof; no sheaf machinery is needed. See [What remains](#what-remains).
 
 ## Why the *conditional* statement
 
@@ -252,7 +257,11 @@ In order:
 7. `ValueBlind` — **done**: the `RelF`/`RelHeap` logical relation, the fundamental
    lemma `rel_run`, and `value_blind_isTrue` — general value-blindness for the
    code-opaque (honest-realizer) program fragment.
-8. `Soundness` — full type-theoretic soundness; later.
+8. `Unified` — **done (minimal)**: the single relation `Realizes` interpreting a
+   small object language (`atom`/`or`/`imp`/`falsum`/`choice`), and the headline
+   theorem `headline` — `choice` realized and `φ ∨ ¬φ` refuted in *one* relation.
+9. `Soundness` — full type-theoretic soundness (compositional `‖·‖`/`Π`, the full
+   `AC_dec` implication, every rule); later.
 
 ## Lineage
 
