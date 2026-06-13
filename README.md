@@ -268,8 +268,61 @@ intuitionistic, control-free cousin of Miquel's forcing-as-program-transformatio
 and Krivine's clock-realizers for DC; the coverage is Beth/open-cover
 (Fourman–Scott); the conceptual home is a realizability tripos indexed over
 `Sh(L)`, though the kernel formalization does not build one.
-*(Novelty of the decidable-equality generalization is being checked against the
-literature — see the open lineage question.)*
+### Literature check (2026-06-13) — technique known, the non-projective angle survives
+
+A focused literature pass found that the core *technique* is established and
+*actively published*, but that the headline generalization, read correctly, is
+about non-projectivity and is *not* subsumed by it:
+
+- **Stateful/effectful memoization realizing choice is known and recent.**
+  Cohen & Rahli, *Realizing Continuity Using Stateful Computations* (CSL 2023,
+  Coq/Nuprl), use reference-like stateful choice operators with a forcing
+  interpretation in which "computations modify the current world" — essentially
+  this repo's monotone-update monad over forcing conditions. *Syntactic
+  Effectful Realizability in HOL* (EffHOL, LICS 2025) states outright that
+  "memoization techniques guarantee the validity of countable choice even in the
+  presence of other effects." Stateful Combinatory Algebras / *Combinatory
+  Algebra with Effects* (arXiv 2506.09453, 2025) realize countable choice by
+  memoization via a monad with state and location. So "memoization is the generic
+  section" is not new.
+- **The decidable-equality generalization is about *projectivity*, and survives.**
+  Bauer & Swan, *Every metric space is separable in function realizability*
+  (2018), show that in the *function* realizability topos every decidable-equality
+  object is **countable** — but countable means *a surjection from a **decidable**
+  subset of `ℕ`*, which is **not** projectivity. `AC_dec` is choice for
+  decidable-equality objects that may be **non-projective**, and those exist: a
+  "twisted `ℕ`" where class `e` is realized by `2e` and/or `2e+1`, the valid
+  realizer per pair fixed by diagonalizing against `φ_e` so no machine computes a
+  normal form. Its equality is decidable ("same pair"), but the carrier `S ⊆ ℕ`
+  is *undecidable*, so there is no decidable indexing set to search — the
+  least-code "minimization" that would force projectivity has no ground to stand
+  on, and Bauer–Swan's countability (a function-realizability result) doesn't
+  apply. The memoizer gives choice for such an object using *only* the decidable
+  equality test, never a normal form — which is exactly the point.
+
+- **The closest recent works realize choice over `ℕ`, not over a general
+  decidable-equality index.** Reading the full texts: EffHOL's principle is
+  `CC := ∀u₁ : N×τ ↣ . Tot(u₁) ⊐ ∃u₂ : N×τ ↣ . u₂ ⊆ u₁ ⊓ Det(u₂) ⊓ Tot(u₂)`
+  with `Tot(u) = ∀n : N. ∃i : τ. (n,i) ∈ u` — the **index is `N`** (`τ` is the
+  *codomain*), and memoization stores "one `pᵢₙ` per `n`," keyed by the numeral.
+  The SCA paper likewise: PCAs model Countable Choice, nondeterminism can negate
+  it, state recovers it — all index `ℕ`. Neither generalizes the *index* to an
+  arbitrary decidable-equality object, nor invokes decidable equality of a
+  general index (`ℕ` has it for free). So the project's specific move — *memoize
+  by the decidable equality of an arbitrary, possibly non-projective, index* — is
+  not what these papers do.
+
+So the candidate contribution — **stateful memoization realizes choice for an
+arbitrary *decidable-equality* index, including *non-projective* ones, beyond the
+`ℕ`-index of countable choice** — survives the literature check against the
+closest recent work, and is witnessed concretely by the twisted-`ℕ`. *Caveats:*
+the pass was focused (two papers read in full, others by snippet); not checked
+are EffHOL's cited memoization-for-CC references, and whether "choice for
+decidable-equality objects" is folklore in the older realizability-topos
+literature. The core *technique* (stateful memoization → choice) is firmly
+established; the delta is the index generalization plus the Lean 4 formalization
+(the non-Boolean Heyting algebra, the firewall, the value-blindness logical
+relation), which stands as a contribution regardless.
 
 ## Building
 
