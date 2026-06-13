@@ -442,3 +442,20 @@ is K1-shaped and low-risk. The full type-level ⊩ (Π/Σ/= clauses, the simulat
 `h ~ c` of §2) is only needed if one wants AC_dec and EM-failure as *one*
 `e ⊩_c X` relation (the "single model" goal); the firewall itself needs only the
 propositional fragment above.
+
+**Progress (2026-06-13) — the no-global-decision half is DONE**
+(`Firewall.lean`, `no_decision_phiGluing`). Gluing `Bool`'s two points by
+`equal ⟺ φ` (K1's *internally undecided* `φ`, not an external `Prop`), the
+predicate `DecidesPhiGluing eqr k₀ k₁ h` is the operational form of "supply
+`DecidableEq` of the `φ`-glued type at `h`". Theorem: `¬ DecidesPhiGluing _ _ _ h₀`
+— no eq-realizer decides the gluing at the root. The **proof is literally
+`em_not_realized`**: the eq-realizer on the two point-codes would be a program
+deciding `φ ∨ ¬φ` at `h₀`, which K1 rules out. So this is not new mathematics —
+it is the *conceptual identification* "K1 non-Booleanness ＝ Diaconescu firewall,
+internal case", now formally witnessed, upgrading §8 from an external/global `P`
+to a genuinely *local* (internally undecided) equality.
+
+What remains genuinely open is the **other half**: a *local* eq decides the
+gluing per cover branch (on extensions of `h₀`); whether *that*, wired into the
+memoizer, leaks anything is the branch-quantified value-blindness problem — the
+`kDec ψ_eq = ⊤` bridge above, still unproven, still needing the branch ⊩.

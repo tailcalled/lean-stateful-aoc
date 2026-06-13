@@ -148,4 +148,45 @@ theorem effectful_glue_firewall {eqr : V₀ → V₀ → F V₀} {k₀ k₁ : V�
     exact Bool.noConfusion h1
   | true => exact Or.inl (hsound.mp hb)
 
+/-! ## The firewall for an *internally undecided* equality (local case)
+
+§8 above glues by an *external* `P : Prop`, which is globally decided-or-not.
+The genuine local case glues by an *internal, generic* proposition — one
+undecided at the root. K1's `φ` is exactly such a proposition
+(`em_not_realized`). Here we glue `Bool`'s two points "equal ⟺ `φ`" and show
+**no eq-realizer can decide that equality at the base condition** — recasting K1's
+non-Booleanness directly as a Diaconescu firewall.
+
+This is the conceptual bridge: *non-Booleanness and the Diaconescu firewall are
+the same phenomenon* for the internal case. Supplying `AC_dec`'s `DecidableEq`
+premise for the `φ`-glued type is *exactly* deciding `φ`, which K1 forbids — so
+`AC_dec` cannot be invoked over it, and manufactures no EM.
+
+Scope: this is the *no-global-decision* half. A genuinely *local* eq decides the
+equality per cover branch (on extensions of `h₀`), not at `h₀` itself; that such
+a local eq, wired into the memoizer, leaks nothing is the open branch-quantified
+problem (`THEORY.md` §9). -/
+
+/-- An eq-realizer **decides the `φ`-gluing** at heap `h` if, run on the two
+glued point-codes, it terminates with a verdict that soundly tracks the points'
+(generic) equality — `equal ⟺ φ`. This is the operational form of "supplying
+`DecidableEq` of the `φ`-glued type at `h`": a `true` verdict realizes the
+equality (`φ`), a `false` verdict its negation. -/
+def DecidesPhiGluing (eqr : V₀ → V₀ → F V₀) (k₀ k₁ : V₀) (h : Heap V₀) : Prop :=
+  ∃ (fuel : ℕ) (s : Step V₀ h),
+    run isTrue₀ fuel (eqr k₀ k₁) h = some s ∧
+    (if isTrue₀ s.val then ForcesPhi s.next else ForcesNegPhi s.next)
+
+/-- **The internal/local firewall (no-global-decision half).** No eq-realizer
+decides the `φ`-gluing at the base condition. The proof *is* K1's
+`em_not_realized`: the eq-realizer applied to the two point-codes would be a
+program deciding `φ ∨ ¬φ` at the root, which does not exist. Hence the
+`DecidableEq` premise for the `φ`-glued type is unrealizable there, `AC_dec`
+cannot be invoked, and no excluded middle leaks — for an equality that is
+*genuinely only locally decidable*, unlike the global `P` of §8. -/
+theorem no_decision_phiGluing (eqr : V₀ → V₀ → F V₀) (k₀ k₁ : V₀) :
+    ¬ DecidesPhiGluing eqr k₀ k₁ h₀ := by
+  rintro ⟨fuel, s, hrun, hverdict⟩
+  exact em_not_realized ⟨eqr k₀ k₁, fuel, s, hrun, hverdict⟩
+
 end LeanStatefulAoc
