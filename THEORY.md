@@ -386,3 +386,59 @@ needs Soundness (K3). The firewall result (§8) covers the global/pure eq case;
 the local/effectful eq firewall — the actual `2/~ₚ` subtlety and the genuine
 novelty frontier — is open. The literature/novelty check (BBC, Berger–Oliva, …)
 matters chiefly here; K2's delta over BBC is the deceq-index packaging.
+
+## 9. Roadmap: the sheaf-⊩ layer and the local-eq firewall (next large build)
+
+Status: designed, not built. The propositional ⊩-layer (the Kripke–Heyting
+algebra `KProp`, `Heyting.lean`) and the firewall *obstruction* (`Glue P`,
+`Firewall.lean`) are done. The remaining frontier is the *sheaf/branch-quantified*
+realizer-level relation. The design, worked out 2026-06-13:
+
+**The unifying lemma already exists.** `KProp.kDec_ne_top_of_undecided`: any
+proposition *undecided at some condition* breaks internal EM (`kDec p ≠ ⊤`). K1's
+`φ` is the instance `undecided_kPhi`. The local-eq firewall is the *same lemma*
+with `p :=` the internalized equality `⟦k₀⟧ = ⟦k₁⟧` of a generic glued type — so
+the firewall reduces to **exhibiting that internal equality as a generic
+(undecided) proposition**. That is the whole job, and it is structurally K1, not
+a new phenomenon.
+
+**Why a new layer is needed.** `Glue P` (§8) takes `P : Prop` — an *external*
+Lean proposition, hence globally decided-or-not. To make the glued type's
+equality *generic* (undecided at the root, decided per branch), `P` must be an
+*internal* proposition like `φ` — living in `KProp`, not `Prop`. So we need the
+gluing, the quotient, and `DecidableEq` **internalized** into the ⊩-semantics.
+
+**Design of the relation.** Reintroduce the **oracle/branch** deleted from the
+original `run` (the course-correction, §8): a *branch* assigns the generic
+verdicts (here, each undecided equality query → a committed bit). `run` stays the
+deterministic execution; the **semantics** quantifies over branches:
+
+- `e ⊩ᵀ_c (y ∈ X)` (data): on every branch from `c`, running `e` yields a value
+  realizing the *same* `y` (the §2 clause).
+- `e ⊩ᵀ_c ‖X‖`: per-branch witness (§2).
+- `e ⊩ᵀ_c (a = a')` at an internal glued type: the branch's committed
+  equality-verdict for the pair — generic, hence undecided at the root.
+
+The branches are exactly the points of the decision cover; "undecided" =
+"both an equal-branch and an unequal-branch extend every condition", which is the
+density pair `kPhi_dense` / its negation, transported to the eq-verdict cell.
+
+**Concrete plan (smallest path to the local-eq firewall):**
+1. An **eq-verdict cell**: like K1's `φ`-cell, but the generic bit is read as
+   "`eqr` committed *equal*". Density of both the equal- and unequal-extensions
+   (typed possibilia: for a glued type, both verdicts are consistent). ⇒ the
+   verdict proposition `ψ_eq : KProp` is `Undecided` at the root.
+2. `kDec_ne_top_of_undecided` ⇒ `DecidableEq` of the glued type is not `⊤`
+   internally — *local* this time (no global `Decidable P` assumed).
+3. Bridge: a realizer of `AC_dec`'s premise over this type would force
+   `kDec ψ_eq = ⊤` (it must route the two keys, i.e. decide `ψ_eq`); contradiction.
+   So the premise is not realized ⇒ `AC_dec` is never invoked ⇒ no EM leak, with
+   *genuinely local* eq. This is the local-eq firewall.
+
+**Risk.** Step 3's bridge — "a routing realizer forces `kDec ψ_eq = ⊤`" — is the
+crux and is unproven; it is the operational↔algebraic bridge whose subtlety
+(realizers may extend the condition before deciding) was flagged in §8. The rest
+is K1-shaped and low-risk. The full type-level ⊩ (Π/Σ/= clauses, the simulation
+`h ~ c` of §2) is only needed if one wants AC_dec and EM-failure as *one*
+`e ⊩_c X` relation (the "single model" goal); the firewall itself needs only the
+propositional fragment above.

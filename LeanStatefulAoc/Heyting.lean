@@ -83,26 +83,49 @@ theorem kAnd_le_iff_le_kImp {p q r : KProp} : kAnd p q ≼ r ↔ p ≼ kImp q r 
 /-- `kNot` is `kImp · ⊥`: the Heyting complement. -/
 theorem kImp_kBot (p : KProp) : kImp p kBot = kNot p := rfl
 
+/-! ### The internal "decidability" proposition, and when it fails
+
+`kDec p := p ⊔ ¬p` is the internal "`p` is decidable / excluded middle for `p`".
+The reusable core of non-Booleanness: `kDec p ≠ ⊤` whenever some condition
+leaves `p` *undecided* (forces neither `p` nor `¬p`). Both K1's `φ` and the
+Diaconescu obstruction (the equality of `2/~ₚ`'s two points, once internalized)
+are instances — they are *generic* propositions, undecided at the root. -/
+
+/-- The internal excluded middle / decidability of `p`. -/
+def kDec (p : KProp) : KProp := kOr p (kNot p)
+
+/-- `p` is undecided at `c`: neither `p` nor `¬p` is forced there. -/
+def Undecided (p : KProp) (c : Cond) : Prop := ¬ p.holds c ∧ ¬ (kNot p).holds c
+
+/-- **The reusable non-Booleanness core.** If `p` is undecided at any condition,
+its internal decidability is not `⊤`. -/
+theorem kDec_ne_top_of_undecided {p : KProp} {c : Cond} (h : Undecided p c) :
+    kDec p ≠ kTop := by
+  intro he
+  have hb : (kDec p).holds c := by rw [he]; trivial
+  rcases hb with hp | hn
+  · exact h.1 hp
+  · exact h.2 hn
+
 /-! ### Excluded middle fails -/
 
-/-- At the base condition neither `φ` nor `¬φ` is forced: the firewall blocks
-`φ` (`protected_h₀`), density blocks `¬φ` (`kPhi_dense`). -/
-theorem base_not_kOr_kPhi_kNot : ¬ (kOr kPhi (kNot kPhi)).holds base := by
-  rintro (hp | hn)
-  · exact protected_h₀.not_forcesPhi hp
-  · obtain ⟨c', hle, hphi⟩ := kPhi_dense base
-    exact hn c' hle hphi
+/-- `φ` is a *generic* proposition: undecided at the base condition. The
+firewall blocks `φ` (`protected_h₀`), density blocks `¬φ` (`kPhi_dense`). -/
+theorem undecided_kPhi : Undecided kPhi base := by
+  refine ⟨protected_h₀.not_forcesPhi, fun hn => ?_⟩
+  obtain ⟨c', hle, hphi⟩ := kPhi_dense base
+  exact hn c' hle hphi
 
 /-- **Excluded middle fails in the algebra.** `φ ⊔ ¬φ ≠ ⊤`. A Boolean algebra
 satisfies `p ⊔ pᶜ = ⊤` for every `p`; this Heyting algebra has a `p` (the
-operational `φ`) where that law fails — so it is **not** Boolean. -/
-theorem kEM_fails : kOr kPhi (kNot kPhi) ≠ kTop := by
-  intro h
-  exact base_not_kOr_kPhi_kNot (h ▸ trivial)
+operational `φ`) where that law fails — so it is **not** Boolean. An instance of
+the generic-undecidability core `kDec_ne_top_of_undecided`. -/
+theorem kEM_fails : kDec kPhi ≠ kTop :=
+  kDec_ne_top_of_undecided undecided_kPhi
 
 /-- Packaged: the Kripke–Heyting algebra of truth values over single-valued
 conditions is a Heyting algebra (laws above) in which excluded middle fails. -/
-theorem heyting_em_fails : ∃ p : KProp, kOr p (kNot p) ≠ kTop :=
+theorem heyting_em_fails : ∃ p : KProp, kDec p ≠ kTop :=
   ⟨kPhi, kEM_fails⟩
 
 end KProp
