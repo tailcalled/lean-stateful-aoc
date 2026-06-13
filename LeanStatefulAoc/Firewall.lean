@@ -189,4 +189,41 @@ theorem no_decision_phiGluing (eqr : V₀ → V₀ → F V₀) (k₀ k₁ : V₀
   rintro ⟨fuel, s, hrun, hverdict⟩
   exact em_not_realized ⟨eqr k₀ k₁, fuel, s, hrun, hverdict⟩
 
+/-! ## The Diaconescu attack recovers exactly the verdict (regime (b))
+
+The genuine firewall: with the verdict *suppliable* per branch (a local eq that
+returns the branch's verdict `o`), run the actual Diaconescu construction —
+allocate the glued-type cell, query both points through the memoizer, compare
+the two representatives — and show the comparison yields **exactly `o`**. So the
+memoizer reveals no more than the eq's own verdict: no extra excluded middle.
+
+Concretely: the cell's eq returns `o` (the branch's "are the points equal?"),
+the family returns each key as its own representative (`fun a => a`). On the
+`o = true` branch the second query is eq-routed to the first entry — the same
+representative comes back, comparison `true` (this is K2 single-valuedness, the
+memoizer's only contribution). On the `o = false` branch the keys get separate
+entries `nat 0`, `nat 1` — distinct representatives, comparison `false`. Either
+way the result is `o`. -/
+
+/-- The Diaconescu program over the glued type: allocate the cell (eq returns the
+branch verdict `o`, family = identity representative), query both point-codes
+`nat 0`, `nat 1`, compare the representatives. -/
+def diaProg (o : Bool) : F V₀ :=
+  .alloc (fun _ _ => .ret (.bool o)) (fun a => .ret a)
+    (fun ℓ => .memo ℓ (.nat 0) (fun r₀ =>
+      .memo ℓ (.nat 1) (fun r₁ => .ret (.bool (decide (r₀ = r₁))))))
+
+/-- **The Diaconescu comparison recovers exactly the verdict.** Running the
+attack from the empty heap yields `bool o` — the eq-verdict it was handed, and
+nothing more. (Regime (b): the premise is supplied per branch, yet `AC_dec`
+leaks no excluded middle beyond it.) -/
+theorem dia_recovers_verdict (o : Bool) :
+    (run isTrue₀ 5 (diaProg o) []).map Step.val = some (V₀.bool o) := by
+  cases o <;>
+    simp [diaProg, show (5 : ℕ) = 4 + 1 from rfl, show (4 : ℕ) = 3 + 1 from rfl,
+      show (3 : ℕ) = 2 + 1 from rfl, show (2 : ℕ) = 1 + 1 from rfl,
+      run_alloc, run_memo, run_ret, scan_nil, scan_cons,
+      allocPT, commitPT, PT.bind, PT.pure, Heap.alloc, Heap.commit,
+      Heap.updateCell, isTrue₀]
+
 end LeanStatefulAoc

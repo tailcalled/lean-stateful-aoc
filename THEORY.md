@@ -459,3 +459,58 @@ What remains genuinely open is the **other half**: a *local* eq decides the
 gluing per cover branch (on extensions of `h₀`); whether *that*, wired into the
 memoizer, leaks anything is the branch-quantified value-blindness problem — the
 `kDec ψ_eq = ⊤` bridge above, still unproven, still needing the branch ⊩.
+
+**The two regimes, made precise (2026-06-13, `Heyting.lean`).** Working toward
+the bridge surfaced that K1's `φ` is the *wrong* example for the genuine
+firewall: `φ` is an **asymmetric** generic — `φ` is forceable but `¬φ` is forced
+*nowhere* (one can always still commit a `true`). A genuine two-point glued type
+needs a **symmetric** generic, where *both* verdicts are forceable on
+incomparable branches. `kVerdict` ("key `nat 0` was decided `false`") is that:
+`kVerdict_holds_commit_false` and `kNot_kVerdict_holds_commit_true` force it and
+its negation respectively (single-valuedness blocks the other value),
+`undecided_kVerdict` leaves it open at the root, `kVerdict_dec_fails` gives
+`kDec kVerdict ≠ ⊤`. So the firewall splits:
+
+- **(a) premise unsuppliable** — asymmetric generic (`φ`): `no_decision_phiGluing`
+  shows the deceq premise can't be supplied at the root, so `AC_dec` never
+  starts. *This is the degenerate regime, and what §8/`no_decision_phiGluing`
+  actually proved.* Done.
+- **(b) premise suppliable, value-blind** — symmetric generic (`kVerdict`): a
+  local eq *can* commit a verdict per branch (the premise IS suppliable here),
+  and `AC_dec` runs; the firewall is then that the memoizer's choice function
+  reveals *no more than the eq's own verdict* — value-blindness over branches.
+  **This is the genuine Diaconescu firewall, and it is open.** It is *not*
+  reducible to `em_not_realized` (the premise is realizable here), so it needs
+  the branch-quantified ⊩ and a genuine relational/observational argument.
+
+Net: the firewall is fully settled in regime (a) and *correctly localized* in
+regime (b) — we now have the right object (`kVerdict`) and know the missing
+statement is value-blindness, not unsuppliability.
+
+**Regime (b): the Diaconescu *attack* is neutralized (2026-06-13,
+`dia_recovers_verdict`).** Rather than the full value-blindness for all programs,
+formalize the *actual EM-extraction attack* and show it fails. `diaProg o`
+allocates the glued-type cell with a local eq returning the branch verdict `o`,
+queries both point-codes through the memoizer, and compares the two
+representatives. Theorem: from the empty heap it evaluates to `bool o` — the
+verdict it was handed, **and nothing more**. The two directions:
+
+- `o = true` → comparison `true`: the second query is eq-routed to the first
+  entry, so the *same* representative returns. This is **K2 single-valuedness** —
+  the memoizer's only contribution, and the non-trivial half.
+- `o = false` → comparison `false`: the keys get separate entries with distinct
+  (identity) representatives.
+
+So with the deceq premise *supplied per branch*, the canonical Diaconescu attack
+recovers only the supplied verdict — `AC_dec` manufactures no excluded middle
+beyond it. The decomposition makes the mechanism explicit: the firewall's content
+is the memoizer's single-valuedness (the `o = true` routing), proven in K2; the
+`o = false` side is the family's representative-distinctness, not the memoizer's
+concern. `#print axioms` = `propext, Quot.sound`.
+
+*What is still open:* this neutralizes the *specific* attack (one program, the
+canonical comparison). Full **value-blindness** — that *every* program over the
+cell reveals no more than the eq-verdict — is the general parametricity statement
+and remains unproven; it needs the branch-quantified ⊩ and a logical-relations
+argument. But the Diaconescu threat itself — the reason the firewall matters — is
+now concretely defused in both regimes.

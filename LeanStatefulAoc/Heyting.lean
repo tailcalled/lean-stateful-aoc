@@ -128,6 +128,113 @@ conditions is a Heyting algebra (laws above) in which excluded middle fails. -/
 theorem heyting_em_fails : ∃ p : KProp, kDec p ≠ kTop :=
   ⟨kPhi, kEM_fails⟩
 
+/-! ### A *symmetric* generic, and the two firewall regimes
+
+K1's `φ` is an *asymmetric* generic: `φ` is forceable, but `¬φ` is forced
+*nowhere* — one can always still commit a `true`. The equality of a genuine
+two-point glued type (`2/~ₚ` with `P` genuinely two-valued-generic) is instead
+*symmetric*: both the equal- and the unequal-verdict are forceable, on
+incomparable branches.
+
+`kVerdict` models exactly that. The designated bit is "key `nat 0` is committed
+to `false`". Committing `nat 0 ↦ false` forces it; committing `nat 0 ↦ true`
+forces its negation (single-valuedness blocks the other value); at the root
+neither. So **both `kVerdict` and `¬kVerdict` are forceable** — the symmetric
+structure `φ` lacks.
+
+This sharpens the firewall into two regimes:
+
+* *(a) premise unsuppliable* — asymmetric generic (`φ`): the deceq premise cannot
+  be supplied at the root at all (`no_decision_phiGluing`), so `AC_dec` never
+  starts. Degenerate; **done**.
+* *(b) premise suppliable, value-blind* — symmetric generic (`kVerdict`): a local
+  eq *can* commit a verdict per branch, supplying the premise; the firewall is
+  then that the memoizer yields *no more* than that verdict (value-blindness
+  over branches). This is the genuine Diaconescu firewall and is **open**.
+-/
+
+/-- A cache with pairwise-distinct keys is functional. -/
+theorem cache_funct {l : List (V₀ × V₀)} (hkd : l.Pairwise fun p q => p.1 ≠ q.1)
+    {a b₁ b₂ : V₀} (h₁ : (a, b₁) ∈ l) (h₂ : (a, b₂) ∈ l) : b₁ = b₂ := by
+  induction l with
+  | nil => exact absurd h₁ (List.not_mem_nil)
+  | cons hd tl ih =>
+    rw [List.pairwise_cons] at hkd
+    rcases List.mem_cons.mp h₁ with he₁ | hm₁ <;> rcases List.mem_cons.mp h₂ with he₂ | hm₂
+    · have : (a, b₁) = (a, b₂) := he₁.trans he₂.symm
+      exact (Prod.ext_iff.mp this).2
+    · have hne := hkd.1 (a, b₂) hm₂
+      rw [← he₁] at hne; exact absurd rfl hne
+    · have hne := hkd.1 (a, b₁) hm₁
+      rw [← he₂] at hne; exact absurd rfl hne
+    · exact ih hkd.2 hm₁ hm₂
+
+/-- `kVerdict` forced at `h`: key `nat 0` is committed to `false` in cell `0`. -/
+def ForcesVerdict (h : Heap V₀) : Prop :=
+  ∃ cell, h[0]? = some cell ∧ (V₀.nat 0, V₀.bool false) ∈ cell.cache
+
+theorem forcesVerdict_persists {c c' : Cond} (hle : c ≤ c')
+    (h : ForcesVerdict c.1) : ForcesVerdict c'.1 := by
+  obtain ⟨cell, hcell, hmem⟩ := h
+  obtain ⟨cell', hcell', hLe⟩ := hle 0 cell hcell
+  obtain ⟨p, hp⟩ := hLe.2.2
+  exact ⟨cell', hcell', by rw [hp]; exact List.mem_append_right p hmem⟩
+
+/-- The symmetric generic: "the designated bit was decided `false`". -/
+def kVerdict : KProp := ⟨fun c => ForcesVerdict c.1, forcesVerdict_persists⟩
+
+/-- Committing the designated bit to `b` from the base condition. -/
+def commitBase (b : Bool) : Cond :=
+  ⟨h₀.commit 0 (V₀.nat 0) (V₀.bool b),
+   le_trans base.2.1 (Heap.le_commit h₀ 0 (V₀.nat 0) (V₀.bool b)), by
+    intro cell hcell
+    rw [Heap.commit, Heap.getElem?_updateCell_self] at hcell
+    simp only [h₀, cell₀, List.getElem?_cons_zero, Option.map_some] at hcell
+    obtain rfl := Option.some.inj hcell
+    exact List.pairwise_singleton _ _⟩
+
+theorem commitBase_cell (b : Bool) :
+    (commitBase b).1[0]? = some ⟨eqCode, famFalse, [(V₀.nat 0, V₀.bool b)]⟩ := by
+  change (h₀.commit 0 (V₀.nat 0) (V₀.bool b))[0]? = _
+  rw [Heap.commit, Heap.getElem?_updateCell_self]
+  rfl
+
+/-- `kVerdict` is forced after committing `false`. -/
+theorem kVerdict_holds_commit_false : kVerdict.holds (commitBase false) :=
+  ⟨_, commitBase_cell false, List.mem_singleton.mpr rfl⟩
+
+/-- `¬kVerdict` is forced after committing `true`: single-valuedness blocks any
+later `false` commit at the same key. **This is the branch `φ` does not have.** -/
+theorem kNot_kVerdict_holds_commit_true : (kNot kVerdict).holds (commitBase true) := by
+  intro c' hle hv
+  obtain ⟨cellf, hcellf, hmemf⟩ := hv
+  obtain ⟨cellt, hcellt, hLe⟩ := hle 0 _ (commitBase_cell true)
+  obtain ⟨p, hp⟩ := hLe.2.2
+  have hmemt : (V₀.nat 0, V₀.bool true) ∈ cellt.cache := by
+    rw [hp]; exact List.mem_append_right p (List.mem_singleton.mpr rfl)
+  rw [hcellf] at hcellt
+  obtain rfl := Option.some.inj hcellt
+  have hkd := c'.2.2 _ hcellf
+  exact absurd (cache_funct hkd hmemf hmemt) (by decide)
+
+/-- `kVerdict` is undecided at the base condition — and, unlike `φ`, *both* it
+and its negation are forceable above the base. -/
+theorem undecided_kVerdict : Undecided kVerdict base := by
+  refine ⟨?_, ?_⟩
+  · rintro ⟨cell, hcell, hmem⟩
+    simp only [base, h₀, cell₀, List.getElem?_cons_zero, Option.some.injEq] at hcell
+    rw [← hcell] at hmem
+    exact absurd hmem (List.not_mem_nil)
+  · intro hn
+    exact hn (commitBase false)
+      (Heap.le_commit h₀ 0 (V₀.nat 0) (V₀.bool false)) kVerdict_holds_commit_false
+
+/-- The internal decidability of the symmetric generic also fails — and here the
+deceq premise is genuinely *suppliable* per branch (regime (b)), so what remains
+is value-blindness, not unsuppliability. -/
+theorem kVerdict_dec_fails : kDec kVerdict ≠ kTop :=
+  kDec_ne_top_of_undecided undecided_kVerdict
+
 end KProp
 
 end LeanStatefulAoc

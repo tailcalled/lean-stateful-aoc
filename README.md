@@ -159,9 +159,18 @@ per-branch non-determinism: an eq that answers `inl` on the cover branch where
 `P` and `inr` where `¬P`, deciding `P` on neither (a section of `(=) + ¬(=)` is
 a partition of a cover). A single deterministic run cannot express that, so the
 local-eq firewall is a *`⊩`-level* statement over cover branches, not an
-operational one. The productive next step is therefore the `⊩`-semantics layer
-(`Realizes`), where value-blindness over branches can be stated and attacked —
-not more effectful machinery (`THEORY.md` §8).
+operational one (`THEORY.md` §8).
+
+**The attack itself, neutralized** (`dia_recovers_verdict`, `THEORY.md` §9).
+Even where the verdict *is* suppliable per branch (`kVerdict`, the symmetric
+generic — unlike K1's asymmetric `φ`), the canonical Diaconescu construction —
+allocate the glued cell, query both points through the memoizer, compare the
+representatives — evaluates to *exactly* the supplied verdict and nothing more.
+The `equal` direction is the memoizer's single-valuedness (K2); the `unequal`
+direction is the family's distinct representatives. So the actual EM-extraction
+attack recovers only the eq it was handed. What is *still* unproven is full
+**value-blindness** — that *every* program, not just this attack, reveals no more
+than the eq-verdict (the general parametricity over cover branches).
 
 ## What remains
 
