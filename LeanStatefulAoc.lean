@@ -1,5 +1,6 @@
 import LeanStatefulAoc.Basic
 import LeanStatefulAoc.Choice
+import LeanStatefulAoc.Combinators
 import LeanStatefulAoc.Computation
 import LeanStatefulAoc.Firewall
 import LeanStatefulAoc.Heyting
