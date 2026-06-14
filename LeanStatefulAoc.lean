@@ -7,5 +7,6 @@ import LeanStatefulAoc.Computation
 import LeanStatefulAoc.Firewall
 import LeanStatefulAoc.Heyting
 import LeanStatefulAoc.NonBoolean
+import LeanStatefulAoc.Topos
 import LeanStatefulAoc.Unified
 import LeanStatefulAoc.ValueBlind

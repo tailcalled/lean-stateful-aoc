@@ -84,4 +84,153 @@ theorem Entails.le_top (P : RProp) : P ⟹ RProp.top := ⟨Code.I, fun _ _ _ => 
 /-- `⊥` is the least element (ex falso). -/
 theorem Entails.bot_le (P : RProp) : RProp.bot ⟹ P := ⟨Code.I, fun _ _ h => h.elim⟩
 
+/-! ### Conjunction (product) -/
+
+/-- `P ⊓ Q` is realized by a pair `pr ⬝ a ⬝ b` of realizers. -/
+def RProp.and (P Q : RProp) : RProp where
+  rel h e := ∃ a b, Code.Reds e (Code.pr ⬝ a ⬝ b) ∧ P.rel h a ∧ Q.rel h b
+  exp := fun r ⟨a, b, hred, hp, hq⟩ => ⟨a, b, Relation.ReflTransGen.head r hred, hp, hq⟩
+
+@[inherit_doc] scoped infixl:60 " ⊓ᵣ " => RProp.and
+
+/-- First projection. -/
+theorem Entails.and_left (P Q : RProp) : P ⊓ᵣ Q ⟹ P :=
+  ⟨Code.fst, fun _ _ ⟨_, _, hred, hp, _⟩ =>
+    P.expReds (.trans (Code.Reds.appR Code.fst hred) (.single Code.Red.prL)) hp⟩
+
+/-- Second projection. -/
+theorem Entails.and_right (P Q : RProp) : P ⊓ᵣ Q ⟹ Q :=
+  ⟨Code.snd, fun _ _ ⟨_, _, hred, _, hq⟩ =>
+    Q.expReds (.trans (Code.Reds.appR Code.snd hred) (.single Code.Red.prR)) hq⟩
+
+/-- Pairing — the universal property of the product. The realizer
+`S ⬝ (B ⬝ pr ⬝ r₁) ⬝ r₂` is closed (no bracket abstraction needed). -/
+theorem Entails.and_intro {R P Q : RProp} (hP : R ⟹ P) (hQ : R ⟹ Q) :
+    R ⟹ P ⊓ᵣ Q := by
+  obtain ⟨r₁, hr₁⟩ := hP
+  obtain ⟨r₂, hr₂⟩ := hQ
+  refine ⟨Code.S ⬝ (Code.B ⬝ Code.pr ⬝ r₁) ⬝ r₂, fun h a ha => ?_⟩
+  refine ⟨r₁ ⬝ a, r₂ ⬝ a, ?_, hr₁ h a ha, hr₂ h a ha⟩
+  exact .trans (.single Code.Red.s) (Code.Reds.appL (Code.B_app Code.pr r₁ a) (r₂ ⬝ a))
+
+/-! ### Disjunction (coproduct) -/
+
+/-- `P ⊔ Q` is realized by a tagged realizer `inl ⬝ a` (left) or `inr ⬝ b` (right). -/
+def RProp.or (P Q : RProp) : RProp where
+  rel h e :=
+    (∃ a, Code.Reds e (Code.inl ⬝ a) ∧ P.rel h a) ∨
+    (∃ b, Code.Reds e (Code.inr ⬝ b) ∧ Q.rel h b)
+  exp := fun r hc => hc.imp
+    (fun ⟨a, hred, hp⟩ => ⟨a, Relation.ReflTransGen.head r hred, hp⟩)
+    (fun ⟨b, hred, hq⟩ => ⟨b, Relation.ReflTransGen.head r hred, hq⟩)
+
+@[inherit_doc] scoped infixl:55 " ⊔ᵣ " => RProp.or
+
+/-- Left injection. -/
+theorem Entails.inl (P Q : RProp) : P ⟹ P ⊔ᵣ Q :=
+  ⟨Code.inl, fun _ _ hp => Or.inl ⟨_, Code.Reds.refl, hp⟩⟩
+
+/-- Right injection. -/
+theorem Entails.inr (P Q : RProp) : Q ⟹ P ⊔ᵣ Q :=
+  ⟨Code.inr, fun _ _ hq => Or.inr ⟨_, Code.Reds.refl, hq⟩⟩
+
+/-- Case analysis — the universal property of the coproduct. With branches-before-
+scrutinee `case`, the eliminator realizer is the closed term `case ⬝ r₁ ⬝ r₂`. -/
+theorem Entails.or_elim {P Q R : RProp} (hP : P ⟹ R) (hQ : Q ⟹ R) :
+    P ⊔ᵣ Q ⟹ R := by
+  obtain ⟨r₁, hr₁⟩ := hP
+  obtain ⟨r₂, hr₂⟩ := hQ
+  refine ⟨Code.case ⬝ r₁ ⬝ r₂, fun h e he => ?_⟩
+  rcases he with ⟨a, hred, hp⟩ | ⟨b, hred, hq⟩
+  · exact R.expReds
+      (.trans (Code.Reds.appR _ hred) (.single Code.Red.caseL)) (hr₁ h a hp)
+  · exact R.expReds
+      (.trans (Code.Reds.appR _ hred) (.single Code.Red.caseR)) (hr₂ h b hq)
+
+/-! ### Implication (exponential) -/
+
+/-- `P ⇒ Q` is realized by a code that maps every realizer of `P` to one of `Q`.
+The condition `h` is fixed (Layer-2 realizers carry it unchanged). -/
+def RProp.imp (P Q : RProp) : RProp where
+  rel h e := ∀ a, P.rel h a → Q.rel h (e ⬝ a)
+  exp := fun r hf a hpa => Q.exp (Code.Red.appL r) (hf a hpa)
+
+@[inherit_doc] scoped infixr:53 " ⇨ᵣ " => RProp.imp
+
+/-- Currying — half of the exponential adjunction `P ⊓ Q ⟹ R ↔ P ⟹ (Q ⇒ R)`.
+Realizer `B ⬝ (B ⬝ r) ⬝ pr` applied to `p` then `q` reduces to `r ⬝ (pr ⬝ p ⬝ q)`. -/
+theorem Entails.curry {P Q R : RProp} (hPQR : P ⊓ᵣ Q ⟹ R) : P ⟹ Q ⇨ᵣ R := by
+  obtain ⟨r, hr⟩ := hPQR
+  refine ⟨Code.B ⬝ (Code.B ⬝ r) ⬝ Code.pr, fun h p hp => ?_⟩
+  intro q hq
+  refine R.expReds ?_ (hr h (Code.pr ⬝ p ⬝ q) ⟨p, q, Code.Reds.refl, hp, hq⟩)
+  exact .trans
+    (Code.Reds.appL (Code.B_app (Code.B ⬝ r) Code.pr p) q)
+    (Code.B_app r (Code.pr ⬝ p) q)
+
+/-- Uncurrying — the other half of the adjunction. Realizer `S ⬝ (B ⬝ r ⬝ fst) ⬝ snd`
+applied to a pair `pr ⬝ a ⬝ b` reduces to `(r ⬝ a) ⬝ b`. -/
+theorem Entails.uncurry {P Q R : RProp} (hP : P ⟹ Q ⇨ᵣ R) : P ⊓ᵣ Q ⟹ R := by
+  obtain ⟨r, hr⟩ := hP
+  refine ⟨Code.S ⬝ (Code.B ⬝ r ⬝ Code.fst) ⬝ Code.snd,
+    fun h e ⟨a, b, hred, hp, hq⟩ => ?_⟩
+  have hfst : Code.Reds (Code.fst ⬝ e) a :=
+    .trans (Code.Reds.appR Code.fst hred) (.single Code.Red.prL)
+  have hsnd : Code.Reds (Code.snd ⬝ e) b :=
+    .trans (Code.Reds.appR Code.snd hred) (.single Code.Red.prR)
+  have hleft : Code.Reds (Code.B ⬝ r ⬝ Code.fst ⬝ e) (r ⬝ a) :=
+    .trans (Code.B_app r Code.fst e) (Code.Reds.appR r hfst)
+  refine R.expReds ?_ (hr h a hp b hq)
+  exact .trans (.single Code.Red.s)
+    (.trans (Code.Reds.appL hleft (Code.snd ⬝ e)) (Code.Reds.appR (r ⬝ a) hsnd))
+
+/-- Modus ponens (the counit `(Q ⇒ R) ⊓ Q ⟹ R`), from uncurrying reflexivity. -/
+theorem Entails.modus_ponens (Q R : RProp) : (Q ⇨ᵣ R) ⊓ᵣ Q ⟹ R :=
+  Entails.uncurry (Entails.refl (Q ⇨ᵣ R))
+
+/-! ### Quantifiers (adjoint to weakening)
+
+For a predicate `φ : I → RProp` over an index type, `∀`/`∃` quantify out the index.
+The defining feature of the *realizability* tripos: the adjunction transpose
+**preserves the realizer** — the same code `r` witnesses both sides, because the
+combinatory algebra absorbs the uniformity over `I`. -/
+
+/-- Entailment of `I`-indexed predicates: one realizer, uniform in the index. -/
+def EntailsI (I : Type) (φ ψ : I → RProp) : Prop :=
+  ∃ r : Code, ∀ i h a, (φ i).rel h a → (ψ i).rel h (r ⬝ a)
+
+/-- Universal quantifier: a single realizer must work at every index. -/
+def RProp.all (I : Type) (φ : I → RProp) : RProp where
+  rel h e := ∀ i, (φ i).rel h e
+  exp := fun r hf i => (φ i).exp r (hf i)
+
+/-- Existential quantifier: realized at some index (the witness is realizer-free). -/
+def RProp.ex (I : Type) (φ : I → RProp) : RProp where
+  rel h e := ∃ i, (φ i).rel h e
+  exp := fun r ⟨i, hi⟩ => ⟨i, (φ i).exp r hi⟩
+
+/-- `∀` is right adjoint to weakening: `(∀ i, P → φ i) ↔ P → ∀ i, φ i`, with the
+**same** realizer on both sides. -/
+theorem all_adjunction {I : Type} (P : RProp) (φ : I → RProp) :
+    EntailsI I (fun _ => P) φ ↔ P ⟹ RProp.all I φ := by
+  constructor
+  · rintro ⟨r, hr⟩; exact ⟨r, fun h a ha i => hr i h a ha⟩
+  · rintro ⟨r, hr⟩; exact ⟨r, fun i h a ha => hr h a ha i⟩
+
+/-- `∃` is left adjoint to weakening: `(∀ i, φ i → Q) ↔ (∃ i, φ i) → Q`, with the
+**same** realizer on both sides. -/
+theorem ex_adjunction {I : Type} (φ : I → RProp) (Q : RProp) :
+    EntailsI I φ (fun _ => Q) ↔ RProp.ex I φ ⟹ Q := by
+  constructor
+  · rintro ⟨r, hr⟩; exact ⟨r, fun h a ⟨i, hi⟩ => hr i h a hi⟩
+  · rintro ⟨r, hr⟩; exact ⟨r, fun i h a ha => hr h a ⟨i, ha⟩⟩
+
+/-- `∀`-elimination (the counit): instantiate at any index. -/
+theorem Entails.all_elim {I : Type} (φ : I → RProp) (i : I) : RProp.all I φ ⟹ φ i :=
+  ⟨Code.I, fun _ _ ha => (φ i).expReds Code.Reds.i (ha i)⟩
+
+/-- `∃`-introduction (the unit): inject at any index. -/
+theorem Entails.ex_intro {I : Type} (φ : I → RProp) (i : I) : φ i ⟹ RProp.ex I φ :=
+  ⟨Code.I, fun _ _ ha => ⟨i, (φ i).expReds Code.Reds.i ha⟩⟩
+
 end LeanStatefulAoc

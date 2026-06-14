@@ -38,6 +38,18 @@ inductive Code : Type where
   | ff : Code
   /-- a cell location -/
   | loc : Nat → Code
+  /-- pair constructor (`pr ⬝ a ⬝ b`) -/
+  | pr : Code
+  /-- first projection -/
+  | fst : Code
+  /-- second projection -/
+  | snd : Code
+  /-- left injection (`inl ⬝ a`) -/
+  | inl : Code
+  /-- right injection (`inr ⬝ b`) -/
+  | inr : Code
+  /-- case analysis (`case ⬝ s ⬝ f ⬝ g`) -/
+  | case : Code
   deriving DecidableEq
 
 @[inherit_doc] infixl:70 " ⬝ " => Code.app
@@ -57,6 +69,14 @@ inductive Code.Red : Code → Code → Prop
   | appL {f f' x} : Code.Red f f' → Code.Red (f ⬝ x) (f' ⬝ x)
   /-- reduce the argument part -/
   | appR {f x x'} : Code.Red x x' → Code.Red (f ⬝ x) (f ⬝ x')
+  /-- `fst (pr a b) → a` -/
+  | prL {a b} : Code.Red (fst ⬝ (pr ⬝ a ⬝ b)) a
+  /-- `snd (pr a b) → b` -/
+  | prR {a b} : Code.Red (snd ⬝ (pr ⬝ a ⬝ b)) b
+  /-- `case f g (inl a) → f a` (branches before scrutinee) -/
+  | caseL {f g a} : Code.Red (case ⬝ f ⬝ g ⬝ (inl ⬝ a)) (f ⬝ a)
+  /-- `case f g (inr b) → g b` -/
+  | caseR {f g b} : Code.Red (case ⬝ f ⬝ g ⬝ (inr ⬝ b)) (g ⬝ b)
 
 /-- Multi-step reduction. -/
 def Code.Reds : Code → Code → Prop := Relation.ReflTransGen Code.Red

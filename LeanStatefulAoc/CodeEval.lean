@@ -53,6 +53,19 @@ def applyV : Nat → CHeap → Code → Code → Option (CHeap × Code)
     | Code.app Code.S a => some (h, Code.app (Code.app Code.S a) x)
     | Code.app (Code.app Code.S a) b =>
       eval fuel h (Code.app (Code.app a x) (Code.app b x))
+    | Code.fst =>
+      match eval fuel h x with
+      | some (h', Code.app (Code.app Code.pr a) _) => some (h', a)
+      | _ => none
+    | Code.snd =>
+      match eval fuel h x with
+      | some (h', Code.app (Code.app Code.pr _) b) => some (h', b)
+      | _ => none
+    | Code.app (Code.app Code.case f) g =>
+      match eval fuel h x with
+      | some (h', Code.app Code.inl a) => eval fuel h' (Code.app f a)
+      | some (h', Code.app Code.inr b) => eval fuel h' (Code.app g b)
+      | _ => none
     | Code.alloc => some (h, Code.app Code.alloc x)
     | Code.app Code.alloc _ => some (h ++ [⟨x, []⟩], Code.loc h.length)
     | Code.memo =>
