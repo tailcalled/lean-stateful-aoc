@@ -2,6 +2,7 @@ import LeanStatefulAoc.Basic
 import LeanStatefulAoc.Choice
 import LeanStatefulAoc.Combinators
 import LeanStatefulAoc.CodeEval
+import LeanStatefulAoc.Tripos
 import LeanStatefulAoc.Computation
 import LeanStatefulAoc.Firewall
 import LeanStatefulAoc.Heyting
