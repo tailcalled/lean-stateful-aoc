@@ -120,6 +120,14 @@ theorem PLe.ex_and_ex {X I J : Type} (φ : X → I → RProp) (ψ : X → J → 
   obtain ⟨p, q, hred, ⟨i, hp⟩, j, hq⟩ := ha
   exact ⟨i, j, p, q, Code.Reds.trans Code.Reds.i hred, hp, hq⟩
 
+/-- Swap two existential quantifiers (the realizer is untouched — `I`). -/
+theorem PLe.ex_swap {X I J : Type} (φ : X → I → J → RProp) :
+    (fun x => RProp.ex I (fun i => RProp.ex J (fun j => φ x i j))) ⊢ₚ
+      (fun x => RProp.ex J (fun j => RProp.ex I (fun i => φ x i j))) := by
+  refine ⟨Code.I, fun x _ a ha => ?_⟩
+  obtain ⟨i, j, hij⟩ := ha
+  exact ⟨j, i, (φ x i j).expReds Code.Reds.i hij⟩
+
 /-! ### Objects -/
 
 /-- An object of the realizability topos (tripos-to-topos over the heap-indexed
@@ -389,6 +397,122 @@ theorem Hom.comp_id {A B : Obj} (F : Hom A B) : HomEq (Hom.comp F (Hom.id B)) F 
     exact PLe.trans (PLe.and_intro (PLe.refl _) F.strict_cod)
       (PLe.ex_intro (fun p : A.carrier × B.carrier => fun y => F.rel p.1 y ⊓ᵣ B.rel y p.2)
         (fun p => p.2))
+
+/-! ### Terminal object, propositions, and truncation -/
+
+/-- The terminal object `1`: a single element, always-true equality. -/
+def one : Obj where
+  carrier := Unit
+  rel _ _ := RProp.top
+  symm := ⟨Code.I, fun _ _ _ _ => trivial⟩
+  trans := ⟨Code.I, fun _ _ _ _ => trivial⟩
+
+/-- A proposition (subobject of `1`) presented by a truth value `P`: one formal
+element whose self-equality is `P`. -/
+def prop (P : RProp) : Obj where
+  carrier := Unit
+  rel _ _ := P
+  symm := PLe.refl _
+  trans := PLe.and_left _ _
+
+/-- An object is a **proposition** (subsingleton) when any two realized elements
+are equal: `E x ⊓ E y ⊢ ρ x y`. -/
+def ObjIsProp (Q : Obj) : Prop :=
+  (fun p : Q.carrier × Q.carrier => Q.rel p.1 p.1 ⊓ᵣ Q.rel p.2 p.2) ⊢ₚ (fun p => Q.rel p.1 p.2)
+
+theorem prop_isProp (P : RProp) : ObjIsProp (prop P) := PLe.and_left _ _
+
+/-- Propositional truncation `‖A‖` = the **support** of `A`: the proposition
+"`A` is inhabited", `∃ x, E_A x`. A realizer is a realizer of `∃ x, E_A x` — i.e. a
+realizer of *some* element of `A`, with the index `x` hidden but the realizer kept.
+Hence witness-preserving, yet a subsingleton via its (trivial) equality. -/
+def trunc (A : Obj) : Obj := prop (RProp.ex A.carrier (fun x => A.rel x x))
+
+theorem trunc_isProp (A : Obj) : ObjIsProp (trunc A) := prop_isProp _
+
+/-- The truncation unit `η : A ⟶ ‖A‖`. -/
+def Hom.toTrunc (A : Obj) : Hom A (trunc A) where
+  rel x _ := A.rel x x
+  strict_dom := PLe.refl _
+  strict_cod :=
+    PLe.ex_intro (fun (p : A.carrier × Unit) => fun x => A.rel x x) (fun p => p.1)
+  congr := by
+    have hxx' : (fun p : A.carrier × A.carrier × Unit × Unit =>
+        A.rel p.1 p.2.1 ⊓ᵣ (trunc A).rel p.2.2.1 p.2.2.2 ⊓ᵣ A.rel p.1 p.1) ⊢ₚ
+        (fun p => A.rel p.1 p.2.1) := PLe.trans (PLe.and_left _ _) (PLe.and_left _ _)
+    exact PLe.trans hxx'
+      (PLe.reindex (fun p : A.carrier × A.carrier × Unit × Unit => (p.1, p.2.1)) A.rel_ext_right)
+  sv := by
+    have hxx : (fun p : A.carrier × Unit × Unit => A.rel p.1 p.1 ⊓ᵣ A.rel p.1 p.1) ⊢ₚ
+        (fun p => A.rel p.1 p.1) := PLe.and_left _ _
+    exact PLe.trans hxx
+      (PLe.ex_intro (fun (p : A.carrier × Unit × Unit) => fun x => A.rel x x) (fun p => p.1))
+  total := PLe.ex_intro (fun (x : A.carrier) => fun (_ : Unit) => A.rel x x) (fun _ => ())
+
+/-- **Universal property of `‖A‖` (the recursor).** Any morphism `A ⟶ Q` into a
+proposition `Q` factors through the unit `η : A ⟶ ‖A‖`. The graph is
+`g _ y = ∃ x, f x y` — it keeps `f`'s realizers (the witness `x` hidden), so this is
+the witness-preserving truncation, and the factoring map exists exactly because `Q`
+is a subsingleton. -/
+def Hom.truncRec {A Q : Obj} (hQ : ObjIsProp Q) (f : Hom A Q) : Hom (trunc A) Q where
+  rel _ y := RProp.ex A.carrier (fun x => f.rel x y)
+  strict_dom :=
+    PLe.ex_mono (PLe.reindex (fun q : (Unit × Q.carrier) × A.carrier => (q.2, q.1.2)) f.strict_dom)
+  strict_cod :=
+    PLe.ex_elim (PLe.reindex (fun q : (Unit × Q.carrier) × A.carrier => (q.2, q.1.2)) f.strict_cod)
+  total := by
+    have h1 : (fun u : Unit => RProp.ex A.carrier (fun x => A.rel x x)) ⊢ₚ
+        (fun u => RProp.ex A.carrier (fun x => RProp.ex Q.carrier (fun y => f.rel x y))) :=
+      PLe.ex_mono (PLe.reindex (fun q : Unit × A.carrier => q.2) f.total)
+    exact PLe.trans h1
+      (PLe.ex_swap (fun (_ : Unit) (x : A.carrier) (y : Q.carrier) => f.rel x y))
+  sv := by
+    refine PLe.trans (PLe.ex_and_ex
+      (fun p : Unit × Q.carrier × Q.carrier => fun x => f.rel x p.2.1)
+      (fun p : Unit × Q.carrier × Q.carrier => fun x => f.rel x p.2.2)) ?_
+    apply PLe.ex_elim
+    apply PLe.ex_elim
+    -- q : ((Unit×Q×Q)×A)×A ; y=q.1.1.2.1 y'=q.1.1.2.2 x=q.1.2 x'=q.2
+    have hEy := PLe.trans
+      (PLe.and_left (fun q : ((Unit × Q.carrier × Q.carrier) × A.carrier) × A.carrier =>
+        f.rel q.1.2 q.1.1.2.1) (fun q => f.rel q.2 q.1.1.2.2))
+      (PLe.reindex (fun q : ((Unit × Q.carrier × Q.carrier) × A.carrier) × A.carrier =>
+        (q.1.2, q.1.1.2.1)) f.strict_cod)
+    have hEy' := PLe.trans
+      (PLe.and_right (fun q : ((Unit × Q.carrier × Q.carrier) × A.carrier) × A.carrier =>
+        f.rel q.1.2 q.1.1.2.1) (fun q => f.rel q.2 q.1.1.2.2))
+      (PLe.reindex (fun q : ((Unit × Q.carrier × Q.carrier) × A.carrier) × A.carrier =>
+        (q.2, q.1.1.2.2)) f.strict_cod)
+    exact PLe.trans (PLe.and_intro hEy hEy')
+      (PLe.reindex (fun q : ((Unit × Q.carrier × Q.carrier) × A.carrier) × A.carrier =>
+        (q.1.1.2.1, q.1.1.2.2)) hQ)
+  congr := by
+    have hQyy' : (fun p : Unit × Unit × Q.carrier × Q.carrier =>
+        (trunc A).rel p.1 p.2.1 ⊓ᵣ Q.rel p.2.2.1 p.2.2.2 ⊓ᵣ
+          RProp.ex A.carrier (fun x => f.rel x p.2.2.1)) ⊢ₚ
+        (fun p => Q.rel p.2.2.1 p.2.2.2) := PLe.trans (PLe.and_left _ _) (PLe.and_right _ _)
+    have hex : (fun p : Unit × Unit × Q.carrier × Q.carrier =>
+        (trunc A).rel p.1 p.2.1 ⊓ᵣ Q.rel p.2.2.1 p.2.2.2 ⊓ᵣ
+          RProp.ex A.carrier (fun x => f.rel x p.2.2.1)) ⊢ₚ
+        (fun p => RProp.ex A.carrier (fun x => f.rel x p.2.2.1)) := PLe.and_right _ _
+    refine PLe.trans (PLe.and_intro hQyy' hex)
+      (PLe.trans (PLe.frobenius
+        (fun p : Unit × Unit × Q.carrier × Q.carrier => Q.rel p.2.2.1 p.2.2.2)
+        (fun p => fun x => f.rel x p.2.2.1)) ?_)
+    apply PLe.ex_mono
+    -- q : (Unit×Unit×Q×Q)×A ; y=q.1.2.2.1 y'=q.1.2.2.2 x=q.2
+    have hQ' : (fun q : (Unit × Unit × Q.carrier × Q.carrier) × A.carrier =>
+        Q.rel q.1.2.2.1 q.1.2.2.2 ⊓ᵣ f.rel q.2 q.1.2.2.1) ⊢ₚ
+        (fun q => Q.rel q.1.2.2.1 q.1.2.2.2) := PLe.and_left _ _
+    have hfxy : (fun q : (Unit × Unit × Q.carrier × Q.carrier) × A.carrier =>
+        Q.rel q.1.2.2.1 q.1.2.2.2 ⊓ᵣ f.rel q.2 q.1.2.2.1) ⊢ₚ
+        (fun q => f.rel q.2 q.1.2.2.1) := PLe.and_right _ _
+    have hExx := PLe.trans hfxy
+      (PLe.reindex (fun q : (Unit × Unit × Q.carrier × Q.carrier) × A.carrier =>
+        (q.2, q.1.2.2.1)) f.strict_dom)
+    exact PLe.trans (PLe.and_intro (PLe.and_intro hExx hQ') hfxy)
+      (PLe.reindex (fun q : (Unit × Unit × Q.carrier × Q.carrier) × A.carrier =>
+        (q.2, q.2, q.1.2.2.1, q.1.2.2.2)) f.congr)
 
 end Obj
 
