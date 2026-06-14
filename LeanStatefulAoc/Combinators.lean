@@ -28,6 +28,16 @@ inductive Code : Type where
   | S : Code
   /-- application -/
   | app : Code → Code → Code
+  /-- the memoizing lookup-or-commit operation (`memo ⬝ loc ℓ ⬝ key`) -/
+  | memo : Code
+  /-- cell allocation (`alloc ⬝ eqcode ⬝ famcode` → a fresh `loc`) -/
+  | alloc : Code
+  /-- the "true" verdict code (for the eq guard) -/
+  | tt : Code
+  /-- the "false" verdict code -/
+  | ff : Code
+  /-- a cell location -/
+  | loc : Nat → Code
   deriving DecidableEq
 
 @[inherit_doc] infixl:70 " ⬝ " => Code.app
@@ -76,16 +86,14 @@ theorem Code.Reds.i {x : Code} : Code.Reds (I ⬝ x) x :=
 /-- Substitution of `var n` by `N`. -/
 def Code.subst (n : Nat) (N : Code) : Code → Code
   | var m => if m = n then N else var m
-  | K => K
-  | S => S
   | app f x => app (Code.subst n N f) (Code.subst n N x)
+  | c => c
 
 /-- Bracket abstraction: `lam n M` is `λ x_n. M`, built from `K`, `S`, `I`. -/
 def Code.lam (n : Nat) : Code → Code
   | var m => if m = n then I else K ⬝ var m
-  | K => K ⬝ K
-  | S => K ⬝ S
   | app f x => S ⬝ Code.lam n f ⬝ Code.lam n x
+  | c => K ⬝ c
 
 /-- **Combinatory completeness.** `(lam n M) · N` reduces to `M[x_n := N]`, so the
 calculus can express every function definable from its variables — the property
@@ -99,11 +107,10 @@ theorem Code.lam_app (n : Nat) (N : Code) (M : Code) :
       exact Code.Reds.i
     · simp only [Code.lam, Code.subst]; rw [if_neg h, if_neg h]
       exact Code.Reds.single Code.Red.k
-  | K => simp only [Code.lam, Code.subst]; exact Code.Reds.single Code.Red.k
-  | S => simp only [Code.lam, Code.subst]; exact Code.Reds.single Code.Red.k
   | app f x ihf ihx =>
     simp only [Code.lam, Code.subst]
     exact .trans (.single Code.Red.s)
       (.trans (Code.Reds.appL ihf _) (Code.Reds.appR _ ihx))
+  | _ => simp only [Code.lam, Code.subst]; exact Code.Reds.single Code.Red.k
 
 end LeanStatefulAoc
