@@ -2,7 +2,10 @@ import LeanStatefulAoc.Basic
 import LeanStatefulAoc.Choice
 import LeanStatefulAoc.Combinators
 import LeanStatefulAoc.CodeEval
+import LeanStatefulAoc.Confluence
 import LeanStatefulAoc.DepProd
+import LeanStatefulAoc.EvalMono
+import LeanStatefulAoc.FwdClosed
 import LeanStatefulAoc.Tripos
 import LeanStatefulAoc.Computation
 import LeanStatefulAoc.Firewall
