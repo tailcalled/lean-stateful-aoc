@@ -50,6 +50,10 @@ inductive Code : Type where
   | inr : Code
   /-- case analysis (`case ⬝ s ⬝ f ⬝ g`) -/
   | case : Code
+  /-- strict sequencing / bind (`seq ⬝ e ⬝ k`: force `e` once, then `k` on its
+  value) — the effect-sequencing primitive that lets effectful realizers compose
+  without call-by-name duplication -/
+  | seq : Code
   deriving DecidableEq
 
 @[inherit_doc] infixl:70 " ⬝ " => Code.app

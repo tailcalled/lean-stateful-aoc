@@ -66,6 +66,13 @@ def applyV : Nat → CHeap → Code → Code → Option (CHeap × Code)
       | some (h', Code.app Code.inl a) => eval fuel h' (Code.app f a)
       | some (h', Code.app Code.inr b) => eval fuel h' (Code.app g b)
       | _ => none
+    | Code.seq => some (h, Code.app Code.seq x)
+    | Code.app Code.seq e =>
+      -- force `e` to a value (threading effects), then apply `x` (= the
+      -- continuation `k`) to that value
+      match eval fuel h e with
+      | none => none
+      | some (h', v) => eval fuel h' (Code.app x v)
     | Code.alloc => some (h, Code.app Code.alloc x)
     | Code.app Code.alloc _ => some (h ++ [⟨x, []⟩], Code.loc h.length)
     | Code.memo =>

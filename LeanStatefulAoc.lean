@@ -7,6 +7,7 @@ import LeanStatefulAoc.Tripos
 import LeanStatefulAoc.Computation
 import LeanStatefulAoc.Firewall
 import LeanStatefulAoc.Heyting
+import LeanStatefulAoc.Memo
 import LeanStatefulAoc.NonBoolean
 import LeanStatefulAoc.RTopos
 import LeanStatefulAoc.Topos
