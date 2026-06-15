@@ -5,6 +5,8 @@ import LeanStatefulAoc.CodeEval
 import LeanStatefulAoc.Confluence
 import LeanStatefulAoc.DepProd
 import LeanStatefulAoc.EvalMono
+import LeanStatefulAoc.EvalHMono
+import LeanStatefulAoc.EvalTripos
 import LeanStatefulAoc.FwdClosed
 import LeanStatefulAoc.Tripos
 import LeanStatefulAoc.Computation
