@@ -1,6 +1,10 @@
 import LeanStatefulAoc.Combinators
 import LeanStatefulAoc.Tripos
 
+-- The tripos-to-topos morphism axioms are predicates over product carriers, whose
+-- type annotations are unavoidably long; the line-length style linter is off here.
+set_option linter.style.longLine false
+
 /-!
 # The realizability topos (Layer 3) — objects and morphisms via tripos-to-topos
 
@@ -127,6 +131,22 @@ theorem PLe.ex_swap {X I J : Type} (φ : X → I → J → RProp) :
   refine ⟨Code.I, fun x _ a ha => ?_⟩
   obtain ⟨i, j, hij⟩ := ha
   exact ⟨j, i, (φ x i j).expReds Code.Reds.i hij⟩
+
+/-- Left injection into a fiberwise coproduct (uniform realizer `inl`). -/
+theorem PLe.inl {X : Type} (φ ψ : Pred X) : φ ⊢ₚ (fun x => φ x ⊔ᵣ ψ x) :=
+  ⟨Code.inl, fun _ _ a ha => Or.inl ⟨a, Code.Reds.refl, ha⟩⟩
+
+/-- Right injection into a fiberwise coproduct (uniform realizer `inr`). -/
+theorem PLe.inr {X : Type} (φ ψ : Pred X) : ψ ⊢ₚ (fun x => φ x ⊔ᵣ ψ x) :=
+  ⟨Code.inr, fun _ _ a ha => Or.inr ⟨a, Code.Reds.refl, ha⟩⟩
+
+/-- Uncurry a double existential into one over the product index (realizer `I`). -/
+theorem PLe.ex_pair {X I J : Type} (φ : X → I → J → RProp) :
+    (fun x => RProp.ex I (fun i => RProp.ex J (fun j => φ x i j))) ⊢ₚ
+      (fun x => RProp.ex (I × J) (fun p => φ x p.1 p.2)) := by
+  refine ⟨Code.I, fun x _ a ha => ?_⟩
+  obtain ⟨i, j, hij⟩ := ha
+  exact ⟨(i, j), (φ x i j).expReds Code.Reds.i hij⟩
 
 /-! ### Objects -/
 
@@ -398,6 +418,269 @@ theorem Hom.comp_id {A B : Obj} (F : Hom A B) : HomEq (Hom.comp F (Hom.id B)) F 
       (PLe.ex_intro (fun p : A.carrier × B.carrier => fun y => F.rel p.1 y ⊓ᵣ B.rel y p.2)
         (fun p => p.2))
 
+/-! ### Binary products -/
+
+/-- The binary product `A × B`: pairs, with componentwise equality. -/
+def prod (A B : Obj) : Obj where
+  carrier := A.carrier × B.carrier
+  rel p q := A.rel p.1 q.1 ⊓ᵣ B.rel p.2 q.2
+  symm := by
+    have hA := PLe.trans
+      (PLe.and_left (fun p : (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        A.rel p.1.1 p.2.1) (fun p => B.rel p.1.2 p.2.2))
+      (PLe.reindex (fun p : (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (p.1.1, p.2.1)) A.symm)
+    have hB := PLe.trans
+      (PLe.and_right (fun p : (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        A.rel p.1.1 p.2.1) (fun p => B.rel p.1.2 p.2.2))
+      (PLe.reindex (fun p : (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (p.1.2, p.2.2)) B.symm)
+    exact PLe.and_intro hA hB
+  trans := by
+    have hA1 := PLe.trans
+      (PLe.and_left (X := (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × B.carrier)
+        (fun p => A.rel p.1.1 p.2.1.1 ⊓ᵣ B.rel p.1.2 p.2.1.2)
+        (fun p => A.rel p.2.1.1 p.2.2.1 ⊓ᵣ B.rel p.2.1.2 p.2.2.2))
+      (PLe.and_left (fun p : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        A.rel p.1.1 p.2.1.1) (fun p => B.rel p.1.2 p.2.1.2))
+    have hA2 := PLe.trans
+      (PLe.and_right (X := (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × B.carrier)
+        (fun p => A.rel p.1.1 p.2.1.1 ⊓ᵣ B.rel p.1.2 p.2.1.2)
+        (fun p => A.rel p.2.1.1 p.2.2.1 ⊓ᵣ B.rel p.2.1.2 p.2.2.2))
+      (PLe.and_left (fun p : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        A.rel p.2.1.1 p.2.2.1) (fun p => B.rel p.2.1.2 p.2.2.2))
+    have hB1 := PLe.trans
+      (PLe.and_left (X := (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × B.carrier)
+        (fun p => A.rel p.1.1 p.2.1.1 ⊓ᵣ B.rel p.1.2 p.2.1.2)
+        (fun p => A.rel p.2.1.1 p.2.2.1 ⊓ᵣ B.rel p.2.1.2 p.2.2.2))
+      (PLe.and_right (fun p : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        A.rel p.1.1 p.2.1.1) (fun p => B.rel p.1.2 p.2.1.2))
+    have hB2 := PLe.trans
+      (PLe.and_right (X := (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × B.carrier)
+        (fun p => A.rel p.1.1 p.2.1.1 ⊓ᵣ B.rel p.1.2 p.2.1.2)
+        (fun p => A.rel p.2.1.1 p.2.2.1 ⊓ᵣ B.rel p.2.1.2 p.2.2.2))
+      (PLe.and_right (fun p : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        A.rel p.2.1.1 p.2.2.1) (fun p => B.rel p.2.1.2 p.2.2.2))
+    have hA := PLe.trans (PLe.and_intro hA1 hA2)
+      (PLe.reindex (fun p : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (p.1.1, p.2.1.1, p.2.2.1)) A.trans)
+    have hB := PLe.trans (PLe.and_intro hB1 hB2)
+      (PLe.reindex (fun p : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (p.1.2, p.2.1.2, p.2.2.2)) B.trans)
+    exact PLe.and_intro hA hB
+
+/-- First projection `π₁ : A × B ⟶ A`. -/
+def Hom.fst (A B : Obj) : Hom (prod A B) A where
+  rel p a' := A.rel p.1 a' ⊓ᵣ B.rel p.2 p.2
+  strict_dom := by
+    have hA := PLe.trans
+      (PLe.and_left (fun q : (A.carrier × B.carrier) × A.carrier => A.rel q.1.1 q.2)
+        (fun q => B.rel q.1.2 q.1.2))
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × A.carrier => (q.1.1, q.2)) A.rel_ext_left)
+    have hB := PLe.and_right
+      (fun q : (A.carrier × B.carrier) × A.carrier => A.rel q.1.1 q.2) (fun q => B.rel q.1.2 q.1.2)
+    exact PLe.and_intro hA hB
+  strict_cod := PLe.trans
+    (PLe.and_left (fun q : (A.carrier × B.carrier) × A.carrier => A.rel q.1.1 q.2)
+      (fun q => B.rel q.1.2 q.1.2))
+    (PLe.reindex (fun q : (A.carrier × B.carrier) × A.carrier => (q.1.1, q.2)) A.rel_ext_right)
+  congr := by
+    -- q : (A×B)×(A×B)×A×A ; p=q.1, p'=q.2.1, a'=q.2.2.1, a''=q.2.2.2
+    have hpp'A : (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × A.carrier =>
+        (A.rel q.1.1 q.2.1.1 ⊓ᵣ B.rel q.1.2 q.2.1.2 ⊓ᵣ A.rel q.2.2.1 q.2.2.2) ⊓ᵣ
+          (A.rel q.1.1 q.2.2.1 ⊓ᵣ B.rel q.1.2 q.1.2)) ⊢ₚ (fun q => A.rel q.1.1 q.2.1.1) :=
+      PLe.trans (PLe.and_left _ _) (PLe.trans (PLe.and_left _ _) (PLe.and_left _ _))
+    have hBpp' : (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × A.carrier =>
+        (A.rel q.1.1 q.2.1.1 ⊓ᵣ B.rel q.1.2 q.2.1.2 ⊓ᵣ A.rel q.2.2.1 q.2.2.2) ⊓ᵣ
+          (A.rel q.1.1 q.2.2.1 ⊓ᵣ B.rel q.1.2 q.1.2)) ⊢ₚ (fun q => B.rel q.1.2 q.2.1.2) :=
+      PLe.trans (PLe.and_left _ _) (PLe.trans (PLe.and_left _ _) (PLe.and_right _ _))
+    have ha'a'' : (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × A.carrier =>
+        (A.rel q.1.1 q.2.1.1 ⊓ᵣ B.rel q.1.2 q.2.1.2 ⊓ᵣ A.rel q.2.2.1 q.2.2.2) ⊓ᵣ
+          (A.rel q.1.1 q.2.2.1 ⊓ᵣ B.rel q.1.2 q.1.2)) ⊢ₚ (fun q => A.rel q.2.2.1 q.2.2.2) :=
+      PLe.trans (PLe.and_left _ _) (PLe.and_right _ _)
+    have hpa' : (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × A.carrier =>
+        (A.rel q.1.1 q.2.1.1 ⊓ᵣ B.rel q.1.2 q.2.1.2 ⊓ᵣ A.rel q.2.2.1 q.2.2.2) ⊓ᵣ
+          (A.rel q.1.1 q.2.2.1 ⊓ᵣ B.rel q.1.2 q.1.2)) ⊢ₚ (fun q => A.rel q.1.1 q.2.2.1) :=
+      PLe.trans (PLe.and_right _ _) (PLe.and_left _ _)
+    -- A.rel p'.1 a''
+    have hp'p := PLe.trans hpp'A
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × A.carrier =>
+        (q.1.1, q.2.1.1)) A.symm)
+    have hp'a' := PLe.trans (PLe.and_intro hp'p hpa')
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × A.carrier =>
+        (q.2.1.1, q.1.1, q.2.2.1)) A.trans)
+    have hp'a'' := PLe.trans (PLe.and_intro hp'a' ha'a'')
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × A.carrier =>
+        (q.2.1.1, q.2.2.1, q.2.2.2)) A.trans)
+    -- B.rel p'.2 p'.2
+    have hBp' := PLe.trans hBpp'
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × A.carrier × A.carrier =>
+        (q.1.2, q.2.1.2)) B.rel_ext_right)
+    exact PLe.and_intro hp'a'' hBp'
+  sv := by
+    -- q : (A×B)×A×A ; p=q.1, a'=q.2.1, a''=q.2.2
+    have hpa' : (fun q : (A.carrier × B.carrier) × A.carrier × A.carrier =>
+        (A.rel q.1.1 q.2.1 ⊓ᵣ B.rel q.1.2 q.1.2) ⊓ᵣ
+          (A.rel q.1.1 q.2.2 ⊓ᵣ B.rel q.1.2 q.1.2)) ⊢ₚ (fun q => A.rel q.1.1 q.2.1) :=
+      PLe.trans (PLe.and_left _ _) (PLe.and_left _ _)
+    have hpa'' : (fun q : (A.carrier × B.carrier) × A.carrier × A.carrier =>
+        (A.rel q.1.1 q.2.1 ⊓ᵣ B.rel q.1.2 q.1.2) ⊓ᵣ
+          (A.rel q.1.1 q.2.2 ⊓ᵣ B.rel q.1.2 q.1.2)) ⊢ₚ (fun q => A.rel q.1.1 q.2.2) :=
+      PLe.trans (PLe.and_right _ _) (PLe.and_left _ _)
+    have ha'p := PLe.trans hpa'
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × A.carrier × A.carrier =>
+        (q.1.1, q.2.1)) A.symm)
+    exact PLe.trans (PLe.and_intro ha'p hpa'')
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × A.carrier × A.carrier =>
+        (q.2.1, q.1.1, q.2.2)) A.trans)
+  total := PLe.ex_intro
+    (fun (p : A.carrier × B.carrier) => fun a' => A.rel p.1 a' ⊓ᵣ B.rel p.2 p.2) (fun p => p.1)
+
+/-- Second projection `π₂ : A × B ⟶ B`. -/
+def Hom.snd (A B : Obj) : Hom (prod A B) B where
+  rel p b' := B.rel p.2 b' ⊓ᵣ A.rel p.1 p.1
+  strict_dom := by
+    have hB := PLe.trans
+      (PLe.and_left (fun q : (A.carrier × B.carrier) × B.carrier => B.rel q.1.2 q.2)
+        (fun q => A.rel q.1.1 q.1.1))
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × B.carrier => (q.1.2, q.2)) B.rel_ext_left)
+    have hA := PLe.and_right
+      (fun q : (A.carrier × B.carrier) × B.carrier => B.rel q.1.2 q.2) (fun q => A.rel q.1.1 q.1.1)
+    -- need (prod A B).rel p p = A.rel p.1 p.1 ⊓ᵣ B.rel p.2 p.2
+    exact PLe.and_intro hA hB
+  strict_cod := PLe.trans
+    (PLe.and_left (fun q : (A.carrier × B.carrier) × B.carrier => B.rel q.1.2 q.2)
+      (fun q => A.rel q.1.1 q.1.1))
+    (PLe.reindex (fun q : (A.carrier × B.carrier) × B.carrier => (q.1.2, q.2)) B.rel_ext_right)
+  congr := by
+    have hpp'B : (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × B.carrier × B.carrier =>
+        (A.rel q.1.1 q.2.1.1 ⊓ᵣ B.rel q.1.2 q.2.1.2 ⊓ᵣ B.rel q.2.2.1 q.2.2.2) ⊓ᵣ
+          (B.rel q.1.2 q.2.2.1 ⊓ᵣ A.rel q.1.1 q.1.1)) ⊢ₚ (fun q => B.rel q.1.2 q.2.1.2) :=
+      PLe.trans (PLe.and_left _ _) (PLe.trans (PLe.and_left _ _) (PLe.and_right _ _))
+    have hApp' : (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × B.carrier × B.carrier =>
+        (A.rel q.1.1 q.2.1.1 ⊓ᵣ B.rel q.1.2 q.2.1.2 ⊓ᵣ B.rel q.2.2.1 q.2.2.2) ⊓ᵣ
+          (B.rel q.1.2 q.2.2.1 ⊓ᵣ A.rel q.1.1 q.1.1)) ⊢ₚ (fun q => A.rel q.1.1 q.2.1.1) :=
+      PLe.trans (PLe.and_left _ _) (PLe.trans (PLe.and_left _ _) (PLe.and_left _ _))
+    have hb'b'' : (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × B.carrier × B.carrier =>
+        (A.rel q.1.1 q.2.1.1 ⊓ᵣ B.rel q.1.2 q.2.1.2 ⊓ᵣ B.rel q.2.2.1 q.2.2.2) ⊓ᵣ
+          (B.rel q.1.2 q.2.2.1 ⊓ᵣ A.rel q.1.1 q.1.1)) ⊢ₚ (fun q => B.rel q.2.2.1 q.2.2.2) :=
+      PLe.trans (PLe.and_left _ _) (PLe.and_right _ _)
+    have hpb' : (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × B.carrier × B.carrier =>
+        (A.rel q.1.1 q.2.1.1 ⊓ᵣ B.rel q.1.2 q.2.1.2 ⊓ᵣ B.rel q.2.2.1 q.2.2.2) ⊓ᵣ
+          (B.rel q.1.2 q.2.2.1 ⊓ᵣ A.rel q.1.1 q.1.1)) ⊢ₚ (fun q => B.rel q.1.2 q.2.2.1) :=
+      PLe.trans (PLe.and_right _ _) (PLe.and_left _ _)
+    have hp'p := PLe.trans hpp'B
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × B.carrier × B.carrier =>
+        (q.1.2, q.2.1.2)) B.symm)
+    have hp'b' := PLe.trans (PLe.and_intro hp'p hpb')
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × B.carrier × B.carrier =>
+        (q.2.1.2, q.1.2, q.2.2.1)) B.trans)
+    have hp'b'' := PLe.trans (PLe.and_intro hp'b' hb'b'')
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × B.carrier × B.carrier =>
+        (q.2.1.2, q.2.2.1, q.2.2.2)) B.trans)
+    have hAp' := PLe.trans hApp'
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × (A.carrier × B.carrier) × B.carrier × B.carrier =>
+        (q.1.1, q.2.1.1)) A.rel_ext_right)
+    exact PLe.and_intro hp'b'' hAp'
+  sv := by
+    have hpb' : (fun q : (A.carrier × B.carrier) × B.carrier × B.carrier =>
+        (B.rel q.1.2 q.2.1 ⊓ᵣ A.rel q.1.1 q.1.1) ⊓ᵣ
+          (B.rel q.1.2 q.2.2 ⊓ᵣ A.rel q.1.1 q.1.1)) ⊢ₚ (fun q => B.rel q.1.2 q.2.1) :=
+      PLe.trans (PLe.and_left _ _) (PLe.and_left _ _)
+    have hpb'' : (fun q : (A.carrier × B.carrier) × B.carrier × B.carrier =>
+        (B.rel q.1.2 q.2.1 ⊓ᵣ A.rel q.1.1 q.1.1) ⊓ᵣ
+          (B.rel q.1.2 q.2.2 ⊓ᵣ A.rel q.1.1 q.1.1)) ⊢ₚ (fun q => B.rel q.1.2 q.2.2) :=
+      PLe.trans (PLe.and_right _ _) (PLe.and_left _ _)
+    have hb'p := PLe.trans hpb'
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × B.carrier × B.carrier =>
+        (q.1.2, q.2.1)) B.symm)
+    exact PLe.trans (PLe.and_intro hb'p hpb'')
+      (PLe.reindex (fun q : (A.carrier × B.carrier) × B.carrier × B.carrier =>
+        (q.2.1, q.1.2, q.2.2)) B.trans)
+  total := PLe.trans
+    (PLe.and_intro
+      (PLe.and_right (fun p : A.carrier × B.carrier => A.rel p.1 p.1) (fun p => B.rel p.2 p.2))
+      (PLe.and_left (fun p : A.carrier × B.carrier => A.rel p.1 p.1) (fun p => B.rel p.2 p.2)))
+    (PLe.ex_intro
+      (fun (p : A.carrier × B.carrier) => fun b' => B.rel p.2 b' ⊓ᵣ A.rel p.1 p.1) (fun p => p.2))
+
+/-- Pairing `⟨f, g⟩ : C ⟶ A × B`, the universal map into the product. -/
+def Hom.pair {C A B : Obj} (f : Hom C A) (g : Hom C B) : Hom C (prod A B) where
+  rel c p := f.rel c p.1 ⊓ᵣ g.rel c p.2
+  strict_dom := PLe.trans
+    (PLe.and_left (fun w : C.carrier × A.carrier × B.carrier => f.rel w.1 w.2.1)
+      (fun w => g.rel w.1 w.2.2))
+    (PLe.reindex (fun w : C.carrier × A.carrier × B.carrier => (w.1, w.2.1)) f.strict_dom)
+  strict_cod := by
+    have hA := PLe.trans
+      (PLe.and_left (fun w : C.carrier × A.carrier × B.carrier => f.rel w.1 w.2.1)
+        (fun w => g.rel w.1 w.2.2))
+      (PLe.reindex (fun w : C.carrier × A.carrier × B.carrier => (w.1, w.2.1)) f.strict_cod)
+    have hB := PLe.trans
+      (PLe.and_right (fun w : C.carrier × A.carrier × B.carrier => f.rel w.1 w.2.1)
+        (fun w => g.rel w.1 w.2.2))
+      (PLe.reindex (fun w : C.carrier × A.carrier × B.carrier => (w.1, w.2.2)) g.strict_cod)
+    exact PLe.and_intro hA hB
+  congr := by
+    -- q : C×C×(A×B)×(A×B) ; c=q.1 c'=q.2.1 (a,b)=q.2.2.1 (a',b')=q.2.2.2
+    have hCcc' : (fun q : C.carrier × C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (C.rel q.1 q.2.1 ⊓ᵣ (A.rel q.2.2.1.1 q.2.2.2.1 ⊓ᵣ B.rel q.2.2.1.2 q.2.2.2.2)) ⊓ᵣ
+          (f.rel q.1 q.2.2.1.1 ⊓ᵣ g.rel q.1 q.2.2.1.2)) ⊢ₚ (fun q => C.rel q.1 q.2.1) :=
+      PLe.trans (PLe.and_left _ _) (PLe.and_left _ _)
+    have hAaa' : (fun q : C.carrier × C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (C.rel q.1 q.2.1 ⊓ᵣ (A.rel q.2.2.1.1 q.2.2.2.1 ⊓ᵣ B.rel q.2.2.1.2 q.2.2.2.2)) ⊓ᵣ
+          (f.rel q.1 q.2.2.1.1 ⊓ᵣ g.rel q.1 q.2.2.1.2)) ⊢ₚ (fun q => A.rel q.2.2.1.1 q.2.2.2.1) :=
+      PLe.trans (PLe.and_left _ _) (PLe.trans (PLe.and_right _ _) (PLe.and_left _ _))
+    have hBbb' : (fun q : C.carrier × C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (C.rel q.1 q.2.1 ⊓ᵣ (A.rel q.2.2.1.1 q.2.2.2.1 ⊓ᵣ B.rel q.2.2.1.2 q.2.2.2.2)) ⊓ᵣ
+          (f.rel q.1 q.2.2.1.1 ⊓ᵣ g.rel q.1 q.2.2.1.2)) ⊢ₚ (fun q => B.rel q.2.2.1.2 q.2.2.2.2) :=
+      PLe.trans (PLe.and_left _ _) (PLe.trans (PLe.and_right _ _) (PLe.and_right _ _))
+    have hfca : (fun q : C.carrier × C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (C.rel q.1 q.2.1 ⊓ᵣ (A.rel q.2.2.1.1 q.2.2.2.1 ⊓ᵣ B.rel q.2.2.1.2 q.2.2.2.2)) ⊓ᵣ
+          (f.rel q.1 q.2.2.1.1 ⊓ᵣ g.rel q.1 q.2.2.1.2)) ⊢ₚ (fun q => f.rel q.1 q.2.2.1.1) :=
+      PLe.trans (PLe.and_right _ _) (PLe.and_left _ _)
+    have hgcb : (fun q : C.carrier × C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (C.rel q.1 q.2.1 ⊓ᵣ (A.rel q.2.2.1.1 q.2.2.2.1 ⊓ᵣ B.rel q.2.2.1.2 q.2.2.2.2)) ⊓ᵣ
+          (f.rel q.1 q.2.2.1.1 ⊓ᵣ g.rel q.1 q.2.2.1.2)) ⊢ₚ (fun q => g.rel q.1 q.2.2.1.2) :=
+      PLe.trans (PLe.and_right _ _) (PLe.and_right _ _)
+    have hf := PLe.trans (PLe.and_intro (PLe.and_intro hCcc' hAaa') hfca)
+      (PLe.reindex (fun q : C.carrier × C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (q.1, q.2.1, q.2.2.1.1, q.2.2.2.1)) f.congr)
+    have hg := PLe.trans (PLe.and_intro (PLe.and_intro hCcc' hBbb') hgcb)
+      (PLe.reindex (fun q : C.carrier × C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (q.1, q.2.1, q.2.2.1.2, q.2.2.2.2)) g.congr)
+    exact PLe.and_intro hf hg
+  sv := by
+    -- q : C×(A×B)×(A×B) ; c=q.1 (a,b)=q.2.1 (a',b')=q.2.2
+    have hfa : (fun q : C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (f.rel q.1 q.2.1.1 ⊓ᵣ g.rel q.1 q.2.1.2) ⊓ᵣ
+          (f.rel q.1 q.2.2.1 ⊓ᵣ g.rel q.1 q.2.2.2)) ⊢ₚ (fun q => f.rel q.1 q.2.1.1) :=
+      PLe.trans (PLe.and_left _ _) (PLe.and_left _ _)
+    have hfa' : (fun q : C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (f.rel q.1 q.2.1.1 ⊓ᵣ g.rel q.1 q.2.1.2) ⊓ᵣ
+          (f.rel q.1 q.2.2.1 ⊓ᵣ g.rel q.1 q.2.2.2)) ⊢ₚ (fun q => f.rel q.1 q.2.2.1) :=
+      PLe.trans (PLe.and_right _ _) (PLe.and_left _ _)
+    have hgb : (fun q : C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (f.rel q.1 q.2.1.1 ⊓ᵣ g.rel q.1 q.2.1.2) ⊓ᵣ
+          (f.rel q.1 q.2.2.1 ⊓ᵣ g.rel q.1 q.2.2.2)) ⊢ₚ (fun q => g.rel q.1 q.2.1.2) :=
+      PLe.trans (PLe.and_left _ _) (PLe.and_right _ _)
+    have hgb' : (fun q : C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (f.rel q.1 q.2.1.1 ⊓ᵣ g.rel q.1 q.2.1.2) ⊓ᵣ
+          (f.rel q.1 q.2.2.1 ⊓ᵣ g.rel q.1 q.2.2.2)) ⊢ₚ (fun q => g.rel q.1 q.2.2.2) :=
+      PLe.trans (PLe.and_right _ _) (PLe.and_right _ _)
+    have hA := PLe.trans (PLe.and_intro hfa hfa')
+      (PLe.reindex (fun q : C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (q.1, q.2.1.1, q.2.2.1)) f.sv)
+    have hB := PLe.trans (PLe.and_intro hgb hgb')
+      (PLe.reindex (fun q : C.carrier × (A.carrier × B.carrier) × A.carrier × B.carrier =>
+        (q.1, q.2.1.2, q.2.2.2)) g.sv)
+    exact PLe.and_intro hA hB
+  total := PLe.trans (PLe.and_intro f.total g.total)
+    (PLe.trans
+      (PLe.ex_and_ex (fun (c : C.carrier) => fun a => f.rel c a)
+        (fun (c : C.carrier) => fun b => g.rel c b))
+      (PLe.ex_pair (fun (c : C.carrier) => fun a b => f.rel c a ⊓ᵣ g.rel c b)))
+
 /-! ### Terminal object, propositions, and truncation -/
 
 /-- The terminal object `1`: a single element, always-true equality. -/
@@ -429,6 +712,18 @@ Hence witness-preserving, yet a subsingleton via its (trivial) equality. -/
 def trunc (A : Obj) : Obj := prop (RProp.ex A.carrier (fun x => A.rel x x))
 
 theorem trunc_isProp (A : Obj) : ObjIsProp (trunc A) := prop_isProp _
+
+/-- **Decidable equality** of an object `A`, internally: a uniform realizer that,
+for every pair `(x, y)`, decides `ρ_A x y` — i.e. realizes the coproduct
+`(x = y) + ¬(x = y)`. This is the realizability reading of the `AC_dec` premise
+`Π x y. (x = y) + ¬(x = y)`; the realizer is what keys the memo cache. -/
+def HasDecEq (A : Obj) : Prop :=
+  (fun _ : A.carrier × A.carrier => RProp.top) ⊢ₚ
+    (fun p => A.rel p.1 p.2 ⊔ᵣ (A.rel p.1 p.2 ⇨ᵣ RProp.bot))
+
+/-- The terminal object has decidable equality (everything is equal — decide `inl`). -/
+theorem hasDecEq_one : HasDecEq one :=
+  PLe.inl (fun _ : Unit × Unit => RProp.top) (fun p => one.rel p.1 p.2 ⇨ᵣ RProp.bot)
 
 /-- The truncation unit `η : A ⟶ ‖A‖`. -/
 def Hom.toTrunc (A : Obj) : Hom A (trunc A) where
