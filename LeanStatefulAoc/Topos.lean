@@ -57,4 +57,36 @@ theorem Produces.of_value {h : CHeap} {v : Code} {Q : RProp}
     (hval : ∀ f x, v ≠ f ⬝ x) (hv : Q.rel h v) : Produces h v Q :=
   ⟨h, v, Evaluates.const hval, hv⟩
 
+/-! ### Monotone state: the heap-extension order
+
+The model's whole point is *monotone* mutable state: the heap only grows, existing
+cells keep their family, and caches only accumulate (commits prepend, newest-first,
+so an old cache is a **suffix** of a newer one). `HLe h h'` ("`h'` extends `h`")
+captures this. It is the order along which the memoizer's committed values persist
+— the backbone of the single-valuedness that makes the AC_dec choice map a genuine
+(equality-respecting) section. -/
+
+/-- `h'` extends `h`: at least as many cells, and every existing cell keeps its
+family and only grows its cache. -/
+def HLe (h h' : CHeap) : Prop :=
+  h.length ≤ h'.length ∧
+    ∀ (ℓ : Nat) (cell : CCell), h[ℓ]? = some cell → ∃ cell' : CCell, h'[ℓ]? = some cell' ∧
+      cell.fam = cell'.fam ∧ cell.cache <:+ cell'.cache
+
+theorem HLe.refl (h : CHeap) : HLe h h :=
+  ⟨Nat.le_refl _, fun _ cell hc => ⟨cell, hc, rfl, List.suffix_refl _⟩⟩
+
+theorem HLe.trans {h₁ h₂ h₃ : CHeap} (h12 : HLe h₁ h₂) (h23 : HLe h₂ h₃) : HLe h₁ h₃ := by
+  refine ⟨Nat.le_trans h12.1 h23.1, fun ℓ cell hc => ?_⟩
+  obtain ⟨cell₂, hc₂, hfam, hsuf⟩ := h12.2 ℓ cell hc
+  obtain ⟨cell₃, hc₃, hfam₂, hsuf₂⟩ := h23.2 ℓ cell₂ hc₂
+  exact ⟨cell₃, hc₃, hfam.trans hfam₂, hsuf.trans hsuf₂⟩
+
+/-- Allocation extends the heap: appending a fresh cell is an `HLe` step. -/
+theorem HLe.alloc (h : CHeap) (c : CCell) : HLe h (h ++ [c]) := by
+  refine ⟨by rw [List.length_append]; exact Nat.le_add_right _ _, fun ℓ cell hc => ?_⟩
+  have hlt : ℓ < h.length := by
+    rw [List.getElem?_eq_some_iff] at hc; exact hc.1
+  exact ⟨cell, by rw [List.getElem?_append_left hlt]; exact hc, rfl, List.suffix_refl _⟩
+
 end LeanStatefulAoc
