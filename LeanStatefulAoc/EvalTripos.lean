@@ -211,6 +211,16 @@ theorem EProp.Produces.bindH {h : CHeap} {e k : Code} {Q R : EProp}
         (eval_mono_le (Nat.le_trans (Nat.le_max_left n0 m0) (by omega)) e0)]
   exact eval_mono_le (Nat.le_trans (Nat.le_max_right n0 m0) (by omega)) em
 
+/-- Transport a producer along a head whose evaluation is dominated by another: if whenever
+`g'` evaluates to a value `g` does too, then `g' ⬝ k` producing gives `g ⬝ k` producing. The
+clean way to swap a redex head for the value/term it reduces to inside a `Produces`. -/
+theorem EProp.Produces.headEq {h : CHeap} {g g' k : Code} {Q : EProp}
+    (hgg' : ∀ hh v, Evaluates h g' hh v → Evaluates h g hh v) (hP : Q.Produces h (g' ⬝ k)) :
+    Q.Produces h (g ⬝ k) := by
+  obtain ⟨h'', w, hev, hw⟩ := hP
+  obtain ⟨hZ, fvZ, hhead, mZ, hap⟩ := Evaluates.app_inv hev
+  exact ⟨h'', w, Evaluates.mk_app (hgg' hZ fvZ hhead) ⟨mZ, hap⟩, hw⟩
+
 /-! ## Entailment: the tripos order over `(Code, eval)` -/
 
 /-- `P ⊨ Q`: a single realizer `r`, uniform over heaps and carrier realizers, that — applied
@@ -242,6 +252,22 @@ theorem EProp.compProduces {P Q R : EProp} {r₁ r₂ : Code}
     refine EProp.Produces.bind (h₁ h a hPa) (fun h' v hqv => ?_)
     -- continuation (K · r₂ · a) · v  ↠  r₂ · v
     obtain ⟨h2, fv, hr2, hRfv⟩ := h₂ h' v hqv
+    obtain ⟨hr', rv, hr2head, m, happ⟩ := Evaluates.app_inv hr2
+    exact ⟨h2, fv, Evaluates.mk_app (Evaluates.headK hr2head) ⟨m, happ⟩, hRfv⟩
+  obtain ⟨h', v, hevseq, hRv⟩ := hbind
+  exact ⟨h', v, Evaluates.headSeqK hevseq, hRv⟩
+
+/-- **Kripke composition.** Like `compProduces`, but the second tracker may assume it runs at
+a heap extending `h` (carries the `HLe`). -/
+theorem EProp.compProducesH {P Q R : EProp} {r₁ r₂ : Code} (h : CHeap) {a : Code}
+    (h₁ : P.rel h a → Q.Produces h (r₁ ⬝ a))
+    (h₂ : ∀ h' v, HLe h h' → Q.rel h' v → R.Produces h' (r₂ ⬝ v))
+    (hPa : P.rel h a) :
+    R.Produces h (Code.compR r₂ r₁ ⬝ a) := by
+  rw [Code.compR]
+  have hbind : R.Produces h (seq ⬝ (r₁ ⬝ a) ⬝ (K ⬝ r₂ ⬝ a)) := by
+    refine EProp.Produces.bindH (h₁ hPa) (fun h' v hle hqv => ?_)
+    obtain ⟨h2, fv, hr2, hRfv⟩ := h₂ h' v hle hqv
     obtain ⟨hr', rv, hr2head, m, happ⟩ := Evaluates.app_inv hr2
     exact ⟨h2, fv, Evaluates.mk_app (Evaluates.headK hr2head) ⟨m, happ⟩, hRfv⟩
   obtain ⟨h', v, hevseq, hRv⟩ := hbind
@@ -430,6 +456,39 @@ theorem EProp.pairProduces {X P Q : EProp} {r₁ r₂ : Code}
   obtain ⟨hh, w, hev, hw⟩ := key
   exact ⟨hh, w, Evaluates.headSeqK hev, hw⟩
 
+/-- **Kripke pairing.** Like `pairProduces`, but the second tracker may assume it runs at a
+heap extending `h` (carries the `HLe`) — needed when the trackers are themselves Kripke
+(future-heap-quantified), as for the exponential. -/
+theorem EProp.pairProducesH {X P Q : EProp} {r₁ r₂ : Code} (h : CHeap) {a : Code}
+    (h₁ : X.rel h a → P.Produces h (r₁ ⬝ a))
+    (h₂ : ∀ h', HLe h h' → X.rel h' a → Q.Produces h' (r₂ ⬝ a))
+    (hXa : X.rel h a) :
+    (P ⊓ₑ Q).Produces h (Code.pairR r₁ r₂ ⬝ a) := by
+  rw [Code.pairR]
+  have key : (P ⊓ₑ Q).Produces h
+      (seq ⬝ (r₁ ⬝ a) ⬝ (S ⬝ (S ⬝ (K ⬝ B) ⬝ (B ⬝ seq ⬝ r₂)) ⬝ (K ⬝ pr) ⬝ a)) := by
+    refine EProp.Produces.bindH (h₁ hXa) (fun h' vp hle hPvp => ?_)
+    have hXa' := X.mono hle hXa
+    have hKCa : Evaluates h' (S ⬝ (S ⬝ (K ⬝ B) ⬝ (B ⬝ seq ⬝ r₂)) ⬝ (K ⬝ pr) ⬝ a) h'
+        (S ⬝ (K ⬝ (B ⬝ seq ⬝ r₂ ⬝ a)) ⬝ (K ⬝ pr ⬝ a)) := by
+      apply Evaluates.headS
+      refine Evaluates.mk_app (h2 := h') (fv := S ⬝ (K ⬝ (B ⬝ seq ⬝ r₂ ⬝ a))) ?_ ⟨1, by simp only [applyV]⟩
+      apply Evaluates.headS
+      exact Evaluates.appHeadSwap (Evaluates.headK Evaluates.Bval) Evaluates.Bval Evaluates.B1
+    have hinner : (P ⊓ₑ Q).Produces h' (seq ⬝ (r₂ ⬝ a) ⬝ (K ⬝ pr ⬝ a ⬝ vp)) := by
+      refine EProp.Produces.bindH (h₂ h' hle hXa') (fun h'' vq hle2 hQvq => ?_)
+      refine ⟨h'', pr ⬝ vp ⬝ vq, ?_, vp, vq, rfl, P.mono hle2 hPvp, hQvq⟩
+      have e1 : Evaluates h'' (K ⬝ pr ⬝ a ⬝ vp) h'' (pr ⬝ vp) :=
+        Evaluates.appHeadSwap (Evaluates.headK Evaluates.prv) Evaluates.prv ⟨2, by simp only [eval, applyV]⟩
+      exact Evaluates.mk_app e1 ⟨1, by simp only [applyV]⟩
+    obtain ⟨hh, w, hev, hw⟩ := hinner
+    refine ⟨hh, w, ?_, hw⟩
+    refine Evaluates.appHeadSwap hKCa Evaluates.S2 ?_
+    apply Evaluates.headS
+    exact Evaluates.appHeadSwap (Evaluates.headK (Evaluates.Bsim Evaluates.seqVal)) Evaluates.seqVal hev
+  obtain ⟨hh, w, hev, hw⟩ := key
+  exact ⟨hh, w, Evaluates.headSeqK hev, hw⟩
+
 /-- **Conjunction introduction** (effectful pairing). -/
 theorem EProp.and_intro {X P Q : EProp} (hP : X ⊨ P) (hQ : X ⊨ Q) : X ⊨ P ⊓ₑ Q := by
   obtain ⟨r₁, h₁⟩ := hP
@@ -446,5 +505,31 @@ theorem EProp.or_elim {P Q R : EProp} (hP : P ⊨ R) (hQ : Q ⊨ R) : P ⊔ₑ Q
     exact ⟨h', v, Evaluates.caseLβ hev, hv⟩
   · obtain ⟨h', v, hev, hv⟩ := h₂ h y hy
     exact ⟨h', v, Evaluates.caseRβ hev, hv⟩
+
+/-! ## Values and implication
+
+The implication connective `⇨ₑ` and (next) the exponential need realizers that are
+*functions*: their `ev` field can't reduce a function to "a realizer of `P`" the way `∧`/`∃`
+do, so we require the realizer to be a **value** (`IsVal`, eval-stable) and quantify the
+producing condition over **future heaps** (`HLe`) so Kripke-monotonicity (`mono`) is free.
+This is the shared pattern for both `⇨ₑ` and `Obj.expn`. -/
+
+/-- A code is a value if it evaluates to itself at every heap (a stuck weak-head form). -/
+def IsVal (c : Code) : Prop := ∀ h, Evaluates h c h c
+
+theorem IsVal.pr {a b : Code} : IsVal (pr ⬝ a ⬝ b) := fun _ => Evaluates.prVal
+theorem IsVal.inl {a : Code} : IsVal (inl ⬝ a) := fun _ => Evaluates.inlVal
+theorem IsVal.inr {a : Code} : IsVal (inr ⬝ a) := fun _ => Evaluates.inrVal
+
+/-- **Implication**: realized by a *value* `c` that, at any future heap, sends a `P`-realizer
+to a `Q`-producer. The future-heap (`HLe`) quantification makes it Kripke-monotone. -/
+def EProp.imp (P Q : EProp) : EProp where
+  rel h c := IsVal c ∧ ∀ h' a, HLe h h' → P.rel h' a → Q.Produces h' (c ⬝ a)
+  ev := by rintro h c ⟨hv, himp⟩; exact ⟨h, c, hv h, hv, himp⟩
+  mono := by
+    rintro h h' c hle ⟨hv, himp⟩
+    exact ⟨hv, fun h'' a hle'' ha => himp h'' a (HLe.trans hle hle'') ha⟩
+
+@[inherit_doc] infixr:60 " ⇨ₑ " => EProp.imp
 
 end LeanStatefulAoc
