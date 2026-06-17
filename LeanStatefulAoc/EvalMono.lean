@@ -19,6 +19,25 @@ namespace LeanStatefulAoc
 
 open Code
 
+/-- The `memoScan` half of fuel monotonicity, assuming the `eval` half at fuel `n`. -/
+theorem memoScan_mono_of_eval_mono (n : Nat)
+    (hev : ∀ h e r, eval n h e = some r → eval (n + 1) h e = some r) :
+    ∀ h eqr key cache r, memoScan n h eqr key cache = some r →
+      memoScan (n + 1) h eqr key cache = some r := by
+  intro h eqr key cache
+  induction cache generalizing h with
+  | nil => intro r hx; simpa only [memoScan] using hx
+  | cons p rest ih =>
+    obtain ⟨k, v⟩ := p
+    intro r hx
+    simp only [memoScan] at hx ⊢
+    cases hg : eval n h (Code.app (Code.app eqr k) key) with
+    | none => simp [hg] at hx
+    | some q =>
+      obtain ⟨h', verdict⟩ := q
+      rw [hev h _ (h', verdict) hg]; rw [hg] at hx
+      cases verdict <;> first | exact hx | exact ih h' r hx
+
 /-- The `applyV` half of fuel monotonicity, assuming the `eval` half at fuel `n`. -/
 theorem applyV_mono_of_eval_mono (n : Nat)
     (hev : ∀ h e r, eval n h e = some r → eval (n + 1) h e = some r) :
@@ -71,16 +90,22 @@ theorem applyV_mono_of_eval_mono (n : Nat)
           | none => simp only [hc] at hx ⊢; exact hx
           | some cell =>
             simp only [hc] at hx ⊢
-            cases hf : cell.cache.find? (fun p => decide (p.1 = key)) with
-            | some pr => simp only [hf] at hx ⊢; exact hx
-            | none =>
-              simp only [hf] at hx ⊢
-              cases hfam : eval n h1 (Code.app cell.fam key) with
-              | none => simp [hfam] at hx
-              | some p2 =>
-                obtain ⟨h2, v⟩ := p2
-                rw [hev h1 (Code.app cell.fam key) (h2, v) hfam]; rw [hfam] at hx
-                cases h2[ℓ]? <;> exact hx
+            cases hms : memoScan n h1 cell.eqr key cell.cache with
+            | none => simp [hms] at hx
+            | some res =>
+              obtain ⟨h', ov⟩ := res
+              rw [memoScan_mono_of_eval_mono n hev h1 cell.eqr key cell.cache (h', ov) hms]
+              rw [hms] at hx
+              cases ov with
+              | some v => exact hx
+              | none =>
+                dsimp only at hx ⊢
+                cases hfam : eval n h' (Code.app cell.fam key) with
+                | none => simp [hfam] at hx
+                | some p2 =>
+                  obtain ⟨h2, v⟩ := p2
+                  rw [hev h' (Code.app cell.fam key) (h2, v) hfam]; rw [hfam] at hx
+                  cases h2[ℓ]? <;> exact hx
     case app g z =>
       cases g <;> try (simpa only [applyV] using hx)
       case S =>
@@ -127,5 +152,14 @@ theorem eval_mono_le {n m : Nat} (hnm : n ≤ m) {h : CHeap} {e : Code} {r : CHe
   induction hnm with
   | refl => exact he
   | step _ ih => exact eval_mono _ _ _ _ ih
+
+/-- Fuel monotonicity of the cache scan, to any larger fuel. -/
+theorem memoScan_mono_le {n m : Nat} (hnm : n ≤ m) {h : CHeap} {eqr key : Code}
+    {cache : List (Code × Code)} {r : CHeap × Option Code}
+    (hx : memoScan n h eqr key cache = some r) : memoScan m h eqr key cache = some r := by
+  induction hnm with
+  | refl => exact hx
+  | step _ ih =>
+    exact memoScan_mono_of_eval_mono _ (fun h e r => eval_mono _ h e r) _ _ _ _ _ ih
 
 end LeanStatefulAoc

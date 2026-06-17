@@ -24,6 +24,32 @@ namespace LeanStatefulAoc
 
 open Code
 
+/-- The `memoScan` half of heap monotonicity, assuming the `eval` half at fuel `n`: an
+eq-guarded cache scan only grows the heap (the eq-guard's effects thread through). -/
+theorem memoScan_hmono_of_eval_hmono (n : Nat)
+    (hev : ∀ h e h' v, eval n h e = some (h', v) → HLe h h') :
+    ∀ h eqr key cache hfin ov, memoScan n h eqr key cache = some (hfin, ov) → HLe h hfin := by
+  intro h eqr key cache
+  induction cache generalizing h with
+  | nil =>
+    intro hfin ov hx
+    simp only [memoScan, Option.some.injEq, Prod.mk.injEq] at hx
+    obtain ⟨rfl, _⟩ := hx; exact HLe.refl h
+  | cons p rest ih =>
+    obtain ⟨k, v⟩ := p
+    intro hfin ov hx
+    simp only [memoScan] at hx
+    cases hg : eval n h (Code.app (Code.app eqr k) key) with
+    | none => simp [hg] at hx
+    | some q =>
+      obtain ⟨hq, verdict⟩ := q
+      have hleg := hev h _ hq verdict hg
+      rw [hg] at hx
+      cases verdict <;>
+        first
+          | exact HLe.trans hleg (ih hq hfin ov hx)
+          | (simp only [Option.some.injEq, Prod.mk.injEq] at hx; obtain ⟨rfl, _⟩ := hx; exact hleg)
+
 /-- The `applyV` half of heap monotonicity, assuming the `eval` half at fuel `n`. -/
 theorem applyV_hmono_of_eval_hmono (n : Nat)
     (hev : ∀ h e h' v, eval n h e = some (h', v) → HLe h h') :
@@ -104,24 +130,31 @@ theorem applyV_hmono_of_eval_hmono (n : Nat)
           | none => simp [hc] at hx
           | some cell =>
             simp only [hc] at hx
-            cases hf : cell.cache.find? (fun p => decide (p.1 = key)) with
-            | some pr =>
-              simp only [hf, Option.some.injEq, Prod.mk.injEq] at hx
-              obtain ⟨rfl, _⟩ := hx; exact hle1
-            | none =>
-              simp only [hf] at hx
-              cases hfam : eval n h1 (Code.app cell.fam key) with
-              | none => simp [hfam] at hx
-              | some p2 =>
-                obtain ⟨h2, w⟩ := p2
-                have hle2 := hev h1 (Code.app cell.fam key) h2 w hfam
-                simp only [hfam] at hx
-                cases hc2 : h2[ℓ]? with
-                | none => simp [hc2] at hx
-                | some cell' =>
-                  simp only [hc2, Option.some.injEq, Prod.mk.injEq] at hx
-                  obtain ⟨rfl, _⟩ := hx
-                  exact HLe.trans hle1 (HLe.trans hle2 (HLe.commit h2 ℓ cell' (key, w) hc2))
+            cases hms : memoScan n h1 cell.eqr key cell.cache with
+            | none => simp [hms] at hx
+            | some res =>
+              obtain ⟨hscan, ov⟩ := res
+              have hlescan :=
+                memoScan_hmono_of_eval_hmono n hev h1 cell.eqr key cell.cache hscan ov hms
+              simp only [hms] at hx
+              cases ov with
+              | some w =>
+                simp only [Option.some.injEq, Prod.mk.injEq] at hx
+                obtain ⟨rfl, _⟩ := hx; exact HLe.trans hle1 hlescan
+              | none =>
+                cases hfam : eval n hscan (Code.app cell.fam key) with
+                | none => simp [hfam] at hx
+                | some p2 =>
+                  obtain ⟨h2, w⟩ := p2
+                  have hle2 := hev hscan (Code.app cell.fam key) h2 w hfam
+                  simp only [hfam] at hx
+                  cases hc2 : h2[ℓ]? with
+                  | none => simp [hc2] at hx
+                  | some cell' =>
+                    simp only [hc2, Option.some.injEq, Prod.mk.injEq] at hx
+                    obtain ⟨rfl, _⟩ := hx
+                    exact HLe.trans hle1 (HLe.trans hlescan
+                      (HLe.trans hle2 (HLe.commit h2 ℓ cell' (key, w) hc2)))
     case app g z =>
       cases g <;>
         try (simp only [applyV, Option.some.injEq, Prod.mk.injEq] at hx;

@@ -318,6 +318,28 @@ theorem Evaluates.caseRβ {h h' : CHeap} {f g b v : Code} (hg : Evaluates h (g �
   simp only [applyV, hinr]
   exact eval_mono_le (Nat.le_max_left n 2) hn
 
+/-- `case · f · g · x` runs like `f · w` when the scrutinee `x` *evaluates* to `inl · w`. -/
+theorem Evaluates.caseLβ' {h h₁ h' : CHeap} {f g x w v : Code}
+    (hx : Evaluates h x h₁ (inl ⬝ w)) (hf : Evaluates h₁ (f ⬝ w) h' v) :
+    Evaluates h (case ⬝ f ⬝ g ⬝ x) h' v := by
+  obtain ⟨nx, hnx⟩ := hx
+  obtain ⟨nf, hnf⟩ := hf
+  refine Evaluates.mk_app (h2 := h) (fv := case ⬝ f ⬝ g) ⟨3, by simp only [eval, applyV]⟩
+    ⟨max nx nf, ?_⟩
+  simp only [applyV, eval_mono_le (Nat.le_max_left nx nf) hnx]
+  exact eval_mono_le (Nat.le_max_right nx nf) hnf
+
+/-- `case · f · g · x` runs like `g · w` when the scrutinee `x` *evaluates* to `inr · w`. -/
+theorem Evaluates.caseRβ' {h h₁ h' : CHeap} {f g x w v : Code}
+    (hx : Evaluates h x h₁ (inr ⬝ w)) (hg : Evaluates h₁ (g ⬝ w) h' v) :
+    Evaluates h (case ⬝ f ⬝ g ⬝ x) h' v := by
+  obtain ⟨nx, hnx⟩ := hx
+  obtain ⟨ng, hng⟩ := hg
+  refine Evaluates.mk_app (h2 := h) (fv := case ⬝ f ⬝ g) ⟨3, by simp only [eval, applyV]⟩
+    ⟨max nx ng, ?_⟩
+  simp only [applyV, eval_mono_le (Nat.le_max_left nx ng) hnx]
+  exact eval_mono_le (Nat.le_max_right nx ng) hng
+
 /-! ## Heyting connectives at the `Produces` level
 
 Realizers are *values* of the expected shape (`tt`, `pr·a·b`, `inl·a`/`inr·b`), so the

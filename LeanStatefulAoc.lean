@@ -9,6 +9,7 @@ import LeanStatefulAoc.EvalHMono
 import LeanStatefulAoc.EvalTripos
 import LeanStatefulAoc.EvalTopos
 import LeanStatefulAoc.EvalMemo
+import LeanStatefulAoc.EvalChoice
 import LeanStatefulAoc.FwdClosed
 import LeanStatefulAoc.Tripos
 import LeanStatefulAoc.Computation
