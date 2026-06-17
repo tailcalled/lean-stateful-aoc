@@ -357,6 +357,119 @@ def coprod (A B : Obj) : Obj where
   symm := coprod_symm A B
   trans := coprod_trans A B
 
+/-- The left injection `A ⟶ A ⊔ B`; its graph is `x ↦ inl x` (`rel x u := ρ_{A⊔B} (inl x) u`). All
+five functional-relation axioms reduce to `coprod`'s own equality structure (reindexed) plus the
+`inl` injection / `⊔ₑ ⊥` elimination. -/
+def Hom.coprodInl (A B : Obj) : Hom A (coprod A B) where
+  rel x u := coprodRel A B (Sum.inl x) u
+  strict_dom :=
+    PLe.trans (PLe.reindex (fun p : A.carrier × (A.carrier ⊕ B.carrier) => (Sum.inl p.1, p.2))
+      (coprod A B).rel_ext_left) (PLe.or_elim (PLe.refl _) ⟨Code.I, fun _ _ _ h => h.elim⟩)
+  strict_cod := PLe.reindex (fun p : A.carrier × (A.carrier ⊕ B.carrier) => (Sum.inl p.1, p.2))
+    (coprod A B).rel_ext_right
+  total := PLe.trans (PLe.inl (fun x => A.rel x x) (fun _ => EProp.bot))
+    (PLe.ex_intro (fun x (u : A.carrier ⊕ B.carrier) => coprodRel A B (Sum.inl x) u)
+      (fun x => Sum.inl x))
+  congr := by
+    have hAxx' := PLe.trans
+      (PLe.and_left (X := A.carrier × A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier))
+        (fun p => A.rel p.1 p.2.1 ⊓ₑ coprodRel A B p.2.2.1 p.2.2.2)
+        (fun p => coprodRel A B (Sum.inl p.1) p.2.2.1))
+      (PLe.and_left
+        (fun p : A.carrier × A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+          A.rel p.1 p.2.1) (fun p => coprodRel A B p.2.2.1 p.2.2.2))
+    have h_x'x := PLe.trans (PLe.trans hAxx'
+        (PLe.inl (fun p : A.carrier × A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+          A.rel p.1 p.2.1) (fun _ => EProp.bot)))
+      (PLe.reindex (fun p : A.carrier × A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        ((Sum.inl p.1 : A.carrier ⊕ B.carrier), Sum.inl p.2.1)) (coprod A B).symm)
+    have h_xu := PLe.and_right
+      (fun p : A.carrier × A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        A.rel p.1 p.2.1 ⊓ₑ coprodRel A B p.2.2.1 p.2.2.2)
+      (fun p => coprodRel A B (Sum.inl p.1) p.2.2.1)
+    have h_uu' := PLe.trans
+      (PLe.and_left (X := A.carrier × A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier))
+        (fun p => A.rel p.1 p.2.1 ⊓ₑ coprodRel A B p.2.2.1 p.2.2.2)
+        (fun p => coprodRel A B (Sum.inl p.1) p.2.2.1))
+      (PLe.and_right
+        (fun p : A.carrier × A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+          A.rel p.1 p.2.1) (fun p => coprodRel A B p.2.2.1 p.2.2.2))
+    have h_x'u := PLe.trans (PLe.and_intro h_x'x h_xu)
+      (PLe.reindex (fun p : A.carrier × A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        (Sum.inl p.2.1, Sum.inl p.1, p.2.2.1)) (coprod A B).trans)
+    exact PLe.trans (PLe.and_intro h_x'u h_uu')
+      (PLe.reindex (fun p : A.carrier × A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        (Sum.inl p.2.1, p.2.2.1, p.2.2.2)) (coprod A B).trans)
+  sv := by
+    have h_xu := PLe.and_left
+      (fun p : A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        coprodRel A B (Sum.inl p.1) p.2.1) (fun p => coprodRel A B (Sum.inl p.1) p.2.2)
+    have h_ux := PLe.trans h_xu
+      (PLe.reindex (fun p : A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        ((Sum.inl p.1 : A.carrier ⊕ B.carrier), p.2.1)) (coprod A B).symm)
+    have h_xu' := PLe.and_right
+      (fun p : A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        coprodRel A B (Sum.inl p.1) p.2.1) (fun p => coprodRel A B (Sum.inl p.1) p.2.2)
+    exact PLe.trans (PLe.and_intro h_ux h_xu')
+      (PLe.reindex (fun p : A.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        (p.2.1, Sum.inl p.1, p.2.2)) (coprod A B).trans)
+
+/-- The right injection `B ⟶ A ⊔ B`; its graph is `y ↦ inr y`. -/
+def Hom.coprodInr (A B : Obj) : Hom B (coprod A B) where
+  rel y u := coprodRel A B (Sum.inr y) u
+  strict_dom :=
+    PLe.trans (PLe.reindex (fun p : B.carrier × (A.carrier ⊕ B.carrier) => (Sum.inr p.1, p.2))
+      (coprod A B).rel_ext_left) (PLe.or_elim ⟨Code.I, fun _ _ _ h => h.elim⟩ (PLe.refl _))
+  strict_cod := PLe.reindex (fun p : B.carrier × (A.carrier ⊕ B.carrier) => (Sum.inr p.1, p.2))
+    (coprod A B).rel_ext_right
+  total := PLe.trans (PLe.inr (fun _ => EProp.bot) (fun y => B.rel y y))
+    (PLe.ex_intro (fun y (u : A.carrier ⊕ B.carrier) => coprodRel A B (Sum.inr y) u)
+      (fun y => Sum.inr y))
+  congr := by
+    have hByy' := PLe.trans
+      (PLe.and_left (X := B.carrier × B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier))
+        (fun p => B.rel p.1 p.2.1 ⊓ₑ coprodRel A B p.2.2.1 p.2.2.2)
+        (fun p => coprodRel A B (Sum.inr p.1) p.2.2.1))
+      (PLe.and_left
+        (fun p : B.carrier × B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+          B.rel p.1 p.2.1) (fun p => coprodRel A B p.2.2.1 p.2.2.2))
+    have h_y'y := PLe.trans (PLe.trans hByy'
+        (PLe.inr (fun _ => EProp.bot)
+          (fun p : B.carrier × B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+            B.rel p.1 p.2.1)))
+      (PLe.reindex (fun p : B.carrier × B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        ((Sum.inr p.1 : A.carrier ⊕ B.carrier), Sum.inr p.2.1)) (coprod A B).symm)
+    have h_yu := PLe.and_right
+      (fun p : B.carrier × B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        B.rel p.1 p.2.1 ⊓ₑ coprodRel A B p.2.2.1 p.2.2.2)
+      (fun p => coprodRel A B (Sum.inr p.1) p.2.2.1)
+    have h_uu' := PLe.trans
+      (PLe.and_left (X := B.carrier × B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier))
+        (fun p => B.rel p.1 p.2.1 ⊓ₑ coprodRel A B p.2.2.1 p.2.2.2)
+        (fun p => coprodRel A B (Sum.inr p.1) p.2.2.1))
+      (PLe.and_right
+        (fun p : B.carrier × B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+          B.rel p.1 p.2.1) (fun p => coprodRel A B p.2.2.1 p.2.2.2))
+    have h_y'u := PLe.trans (PLe.and_intro h_y'y h_yu)
+      (PLe.reindex (fun p : B.carrier × B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        (Sum.inr p.2.1, Sum.inr p.1, p.2.2.1)) (coprod A B).trans)
+    exact PLe.trans (PLe.and_intro h_y'u h_uu')
+      (PLe.reindex (fun p : B.carrier × B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        (Sum.inr p.2.1, p.2.2.1, p.2.2.2)) (coprod A B).trans)
+  sv := by
+    have h_yu := PLe.and_left
+      (fun p : B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        coprodRel A B (Sum.inr p.1) p.2.1) (fun p => coprodRel A B (Sum.inr p.1) p.2.2)
+    have h_uy := PLe.trans h_yu
+      (PLe.reindex (fun p : B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        ((Sum.inr p.1 : A.carrier ⊕ B.carrier), p.2.1)) (coprod A B).symm)
+    have h_yu' := PLe.and_right
+      (fun p : B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        coprodRel A B (Sum.inr p.1) p.2.1) (fun p => coprodRel A B (Sum.inr p.1) p.2.2)
+    exact PLe.trans (PLe.and_intro h_uy h_yu')
+      (PLe.reindex (fun p : B.carrier × (A.carrier ⊕ B.carrier) × (A.carrier ⊕ B.carrier) =>
+        (p.2.1, Sum.inr p.1, p.2.2)) (coprod A B).trans)
+
 end Eval
 
 end LeanStatefulAoc

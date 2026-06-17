@@ -96,6 +96,17 @@ theorem PLe.inl {X : Type} (φ ψ : Pred X) : φ ⊢ₚ (fun x => φ x ⊔ₑ ψ
 theorem PLe.inr {X : Type} (φ ψ : Pred X) : ψ ⊢ₚ (fun x => φ x ⊔ₑ ψ x) :=
   ⟨Code.inr, fun _ h a ha => ⟨h, Code.inr ⬝ a, Evaluates.inrVal, Or.inr ⟨a, rfl, ha⟩⟩⟩
 
+/-- Fiberwise coproduct elimination (uniform realizer `case · r₁ · r₂`): map out of `φ ⊔ₑ ψ`
+into a common target by mapping out of each summand. -/
+theorem PLe.or_elim {X : Type} {φ ψ χ : Pred X} (h₁ : φ ⊢ₚ χ) (h₂ : ψ ⊢ₚ χ) :
+    (fun x => φ x ⊔ₑ ψ x) ⊢ₚ χ := by
+  obtain ⟨r₁, hr₁⟩ := h₁
+  obtain ⟨r₂, hr₂⟩ := h₂
+  refine ⟨Code.case ⬝ r₁ ⬝ r₂, fun x h a ha => ?_⟩
+  rcases ha with ⟨a', rfl, ha'⟩ | ⟨b', rfl, hb'⟩
+  · obtain ⟨h', v, ev, hv⟩ := hr₁ x h a' ha'; exact ⟨h', v, Evaluates.caseLβ ev, hv⟩
+  · obtain ⟨h', v, ev, hv⟩ := hr₂ x h b' hb'; exact ⟨h', v, Evaluates.caseRβ ev, hv⟩
+
 /-- Frobenius reciprocity: `ρ ⊓ ∃ i. φ i ⊢ ∃ i. (ρ ⊓ φ i)` (realizer `I`: the pair is reused). -/
 theorem PLe.frobenius {X I : Type} (ρ : Pred X) (φ : X → I → EProp) :
     (fun x => ρ x ⊓ₑ EProp.ex I (fun i => φ x i)) ⊢ₚ
